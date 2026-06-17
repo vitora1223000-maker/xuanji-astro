@@ -79,6 +79,11 @@
   .ask-card{text-align:center;background:linear-gradient(160deg,rgba(232,201,118,.1),rgba(201,168,255,.08));border:1px solid rgba(232,201,118,.35);border-radius:16px;padding:22px 20px;margin-top:18px}
   .ask-card .ask-title{font-size:17px;font-weight:700;color:var(--gold);margin-bottom:10px;letter-spacing:1px}
   .ask-card .ask-desc{font-size:13.5px;line-height:1.9;color:var(--soft);margin-bottom:8px}
+  .ask-qr{display:flex;align-items:center;justify-content:center;gap:18px;margin:16px 0 6px;flex-wrap:wrap}
+  .ask-qr .qr-img{width:175px;border-radius:14px;background:#fff;padding:12px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+  .ask-qr .qr-text{text-align:left;font-size:14px;line-height:1.6;color:var(--gold);font-weight:600;letter-spacing:.5px}
+  .ask-qr .qr-text .qr-sub{font-size:11.5px;color:var(--soft);font-weight:400;line-height:1.5;display:inline-block;margin-top:6px}
+  .ask-card .ask-or{font-size:12px;color:var(--soft);letter-spacing:3px;margin:12px 0 12px;opacity:.6}
 </style>
 </head>
 <body>
@@ -443,8 +448,13 @@ function renderNatalResult(N){
    <div class="aspects">${aspectTags(N.asp)}</div>
    <div class="ask-card">
      <div class="ask-title">✦ 想要一份「你自己的操作说明书」吗？</div>
-     <div class="ask-desc">这张盘，就是你出厂自带的说明书——你是谁、你的天赋怎么用、感情与正缘、这一生的功课。<br>星盘只是骨架，需要为你逐一读出来。点下面复制你的星盘，私信发给我，我亲自为你深度解读。</div>
-     <button class="btn" id="copyShare">📋 复制我的星盘 · 发给玄玑老师解读</button>
+     <div class="ask-desc">这张盘，就是你出厂自带的说明书——你是谁、你的天赋怎么用、感情与正缘、这一生的功课。<br>星盘只是骨架，需要为你逐一读出来。两种方式找玄玑老师，亲自为你深度解读：</div>
+     <div class="ask-qr">
+       <img src="qr-only.png" alt="玄玑老师 · 小红书二维码" class="qr-img">
+       <div class="qr-text">扫码在小红书<br>找「山玉居士」<br><span class="qr-sub">以占星解构人性<br>用数学逻辑主宰人生</span></div>
+     </div>
+     <div class="ask-or">— 或 —</div>
+     <button class="btn" id="copyShare">📋 复制我的星盘 · 私信发给玄玑老师</button>
    </div>`;
   document.getElementById("natalResult").innerHTML=html;
   // 绑定"复制求解读"
