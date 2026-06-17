@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>玄玑占星 · 照见你自己</title>
+<title>玄玑 · Astrology</title>
 <style>
   :root{
     /* 深空神秘风(与PDF报告同源) */
@@ -88,15 +88,15 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>✦ 玄玑占星 ✦</h1>
-  <div class="sub" id="now">观天测命 · 照见你自己</div>
+  <h1>✦ 玄玑 · Astrology ✦</h1>
+  <div class="sub" id="now">解构人性 · 主宰人生 · 游戏玩家从不做 NPC</div>
   <div id="view"></div>
   <!-- 对外版: prompt框隐藏(仅后台生成, 不给访客看) -->
   <div class="card" id="promptCard" style="display:none">
     <div class="prompt-box" id="prompt"></div>
     <button class="btn" id="copy">复制</button>
   </div>
-  <div class="foot">玄玑占星 · 星历与瑞士星历同源 · 你的出生信息只在本机计算，不上传</div>
+  <div class="foot">玄玑 · Astrology · 星历与瑞士星历同源 · 你的出生信息只在本机计算，不上传<br>小红书 @山玉居士　·　以占星解构人性，用数学逻辑主宰人生</div>
 </div>
 
 <script src="./astronomy.js"></script>
@@ -325,7 +325,7 @@ function buildPrompt(dt,ps,as){
 let natalResult=null; // 存算好的盘, 供生成prompt用
 
 function renderNatalTab(){
-  document.getElementById("now").textContent="观天测命 · 照见你自己";
+  document.getElementById("now").textContent="解构人性 · 主宰人生 · 游戏玩家从不做 NPC";
   const v=document.getElementById("view");
   // 已经算过就连同结果一起渲染, 否则只渲染表单
   if(!v.querySelector("#natalForm")){
@@ -472,7 +472,7 @@ function renderNatalResult(N){
 function buildUserShare(N){
   const a=N.angles,P=N.planets,m=N.meta;
   const planetStr=P.map(p=>`${p.n}${p.sign}${p.deg}°第${p.house}宫${p.rx?'(逆)':''}`).join("、");
-  return `🔮 我的星盘（来自玄玑占星）\n`
+  return `🔮 我的星盘（来自玄玑·Astrology）\n`
     +`性别：${m.sex}\n`
     +`☀太阳${P[0].sign}${P[0].deg}°　🌙月亮${P[1].sign}${P[1].deg}°　⬆️上升${a.asc.sign}${a.asc.deg}°\n`
     +`【行星】${planetStr}\n`
