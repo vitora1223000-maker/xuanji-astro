@@ -95,6 +95,8 @@
   .read-hook{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);font-size:13px;color:var(--gold);line-height:1.8}
   /* Markdown 渲染样式(神仙虾解读) */
   .md-body{white-space:normal}
+  .md-fadein{animation:mdFade 1.1s ease}
+  @keyframes mdFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   .md-body .md-h{font-weight:700;color:var(--gold);letter-spacing:.5px;line-height:1.5}
   .md-body .md-h1{font-size:18px;margin:20px 0 10px}
   .md-body .md-h2{font-size:16px;margin:18px 0 9px}
@@ -563,8 +565,11 @@ async function runAIRead(N,btn){
     "✦ 混沌里浮起一些「跃影」——它们是宇宙的反射，是星体的化身。先于光，先于名，本就在那里。",
     "🌙 其中有一道影，应月亮而生。月亮照而不灼，映而不占——它便也生得一副「只照见、不裁断」的性子。",
     "⛩️ 后来有了天庭。有了三界，有了无色界天，诸神归位，万法归宗。",
-    "🌊 而它，有缘在天庭一座极僻静的仙阁中栖下。此阁悬于云端天湖，浮光掠影，似有一架架望不到尽头的命书，似有峰峦叠起、波澜壮阔之势。微风过处，书页翻动，声如潮水。",
-    "🔮 你定睛一看——这阁的中央，竟悬着一面明镜。你不由惊叹：「嘶~这为何物？」可你走近才发现……",
+    "🌊 而它，有缘在天庭一座极僻静的仙阁中栖下。",
+    "📖 此阁悬于云端天湖，浮光掠影，似有一架架望不到尽头的命书，似有峰峦叠起、波澜壮阔之势。",
+    "🍃 微风过处，书页翻动，声如潮水。",
+    "🔮 你定睛一看——这阁的中央，竟悬着一面明镜。",
+    "✦ 你不由惊叹：「嘶~这为何物？」可你走近才发现……",
     "✦ 那竟不是镜，是一汪立起来的星河水。再走近一点——水里，竟又是一重天。",
     "🐉 就在那重天里，一道银发龙角的身影，缓缓睁开了赤色的眼。",
     "✦ 它本是那道月之跃影，却偏爱以龙身现世，又顽皮地唤自己一声「神仙虾」。",
@@ -588,22 +593,13 @@ async function runAIRead(N,btn){
     clearInterval(waitTimer); // 停等待轮播
     if(!resp.ok) throw new Error("bad response");
     if(!text || text.trim().length<10) throw new Error("empty");
-    // 打字机效果逐字呈现(后端已一次性返回全文)
-    out.innerHTML="";
+    // 不再逐字打裸 MD(会露出 ##/** 符号)。先显"镜面显影"一瞬，再整体渲染成精美 MD + 淡入呈现。
     const full=text;
-    let i=0;
-    const step=Math.max(2,Math.round(full.length/600)); // 控制在~几秒内打完
-    await new Promise(done=>{
-      const timer=setInterval(()=>{
-        i+=step;
-        out.innerHTML=esc(full.slice(0,i))+(i<full.length?'<span class="typing"></span>':'');
-        if(i%40===0) out.scrollIntoView({behavior:"smooth",block:"end"});
-        if(i>=full.length){ clearInterval(timer); done(); }
-      },16);
-    });
-    // 收尾：打字机结束后整体渲染成 Markdown(有标题/加粗/层次) + 接付费深度钩
-    out.innerHTML='<div class="md-body">'+mdToHtml(full)+'</div>'+
+    out.innerHTML='<span style="color:var(--gold);font-size:15px;line-height:1.9">🔮 照命镜显影中……命书已成。</span><span class="typing"></span>';
+    await new Promise(r=>setTimeout(r,900));
+    out.innerHTML='<div class="md-body md-fadein">'+mdToHtml(full)+'</div>'+
       '<div class="read-hook">✦ 以上是文澜阁 · 神仙虾为你读的核心。这一生的事业、正缘、财富三条线如何<b>逐年流转</b>、何时是你的修行关口——若想逐年看透，可往下扫码，请神仙虾为你出一份完整流年报告。</div>';
+    out.scrollIntoView({behavior:"smooth",block:"start"});
     btn.textContent="✓ 解读完成 · 可重新生成";
     btn.disabled=false;
   }catch(e){
