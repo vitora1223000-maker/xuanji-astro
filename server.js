@@ -35,15 +35,18 @@ const MIME = {
 //
 // ⭐关键：用 MiniMax-M3 + thinking:disabled —— M3 是最强模型，关掉思考链后
 // 直接出干净正文（不再有 <think> 英文推理、不会被思考 token 吃掉正文）。
-function callMiniMaxStream(prompt, res) {
+function callMiniMaxStream(prompt, res, raw) {
   const apiKey = process.env.MINIMAX_API_KEY;
   const model = process.env.MINIMAX_MODEL || "MiniMax-M3";
+  const t0 = Date.now();
+  const log = (m) => console.log(`[mm +${((Date.now()-t0)/1000).toFixed(1)}s] ${m}`);
 
   if (!apiKey) {
     res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ error: "服务端未配置 MINIMAX_API_KEY 环境变量" }));
     return;
   }
+  log(`发起 model=${model} keyLen=${apiKey.length} promptLen=${prompt.length} raw=${!!raw}`);
 
   const payload = JSON.stringify({
     model,
@@ -77,6 +80,16 @@ function callMiniMaxStream(prompt, res) {
   });
 
   const upstream = https.request(options, (up) => {
+    log(`上游响应头 statusCode=${up.statusCode}`);
+    // ---- raw 调试旁路：原样把上游每个字节流出（含 think/错误体），不做任何过滤 ----
+    if (raw) {
+      up.setEncoding("utf8");
+      let n = 0;
+      up.on("data", (c) => { n += c.length; res.write(c); });
+      up.on("end", () => { log(`raw 结束 收到${n}字符`); res.end(); });
+      up.on("error", () => { try { res.end(); } catch (_) {} });
+      return;
+    }
     let buf = "";
     // ---- <think> 剥离状态机 ----
     // M2.7 等思考模型会先输出 <think>...英文推理...</think> 再出正文。
@@ -201,14 +214,14 @@ const server = http.createServer((req, res) => {
       if (body.length > 1e6) req.destroy(); // 防超大请求
     });
     req.on("end", () => {
-      let prompt = "";
-      try { prompt = JSON.parse(body).prompt || ""; } catch (_) {}
+      let prompt = "", raw = false;
+      try { const j = JSON.parse(body); prompt = j.prompt || ""; raw = !!j.raw; } catch (_) {}
       if (!prompt) {
         res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ error: "缺少 prompt" }));
         return;
       }
-      callMiniMaxStream(prompt, res);
+      callMiniMaxStream(prompt, res, raw);
     });
     return;
   }
