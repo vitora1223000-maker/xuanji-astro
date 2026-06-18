@@ -93,6 +93,20 @@
   .read-out .typing{display:inline-block;width:7px;height:15px;background:var(--gold);margin-left:2px;animation:blink 1s steps(2) infinite;vertical-align:text-bottom}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
   .read-hook{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);font-size:13px;color:var(--gold);line-height:1.8}
+  /* Markdown 渲染样式(神仙虾解读) */
+  .md-body{white-space:normal}
+  .md-body .md-h{font-weight:700;color:var(--gold);letter-spacing:.5px;line-height:1.5}
+  .md-body .md-h1{font-size:18px;margin:20px 0 10px}
+  .md-body .md-h2{font-size:16px;margin:18px 0 9px}
+  .md-body .md-h3{font-size:15px;margin:15px 0 8px;color:var(--accent2,#c9b6f0)}
+  .md-body .md-h4{font-size:14px;margin:13px 0 7px;color:var(--accent2,#c9b6f0)}
+  .md-body .md-p{margin:9px 0;line-height:1.95}
+  .md-body strong{color:var(--gold);font-weight:700}
+  .md-body em{color:var(--accent2,#c9b6f0);font-style:normal}
+  .md-body .md-ul{margin:8px 0;padding-left:20px}
+  .md-body .md-ul li{margin:5px 0;line-height:1.85}
+  .md-body .md-q{margin:12px 0;padding:10px 14px;border-left:3px solid var(--gold);background:rgba(169,143,216,.1);border-radius:0 8px 8px 0;color:var(--gold);font-size:15px;line-height:1.8}
+  .md-body .md-hr{border:none;border-top:1px solid var(--line);margin:16px 0;opacity:.5}
 </style>
 </head>
 <body>
@@ -530,8 +544,12 @@ function renderNatalResult(N){
 async function runAIRead(N,btn){
   const out=document.getElementById("aiReadOut");
   if(!out) return;
-  // prompt 已在 buildNatalPrompt 里写进隐藏的 #prompt 框
-  const prompt=document.getElementById("prompt").textContent;
+  // 只传"星盘数据+身位特征",由后端拼神仙虾prompt(人设/红线/金句锁后端,用户改不了)
+  const natalData=buildNatalData(N);
+  // 亲密度:localStorage记访问 + 盘指纹(后端记照见次数)
+  const panKey=panFingerprint(N);
+  let visits=0;
+  try{ visits=parseInt(localStorage.getItem("xuanji_visits")||"0",10)||0; localStorage.setItem("xuanji_visits",visits+1); }catch(_){}
   btn.disabled=true; btn.textContent="✨ 伟大的占星师正在为您揭秘…";
   out.style.display="block";
   out.scrollIntoView({behavior:"smooth",block:"center"});
@@ -550,7 +568,7 @@ async function runAIRead(N,btn){
     const resp=await fetch("/api/read",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt})
+      body:JSON.stringify({natal:natalData, pan:panKey, visits:visits})
     });
     const text=await resp.text();
     clearInterval(waitTimer); // 停等待轮播
@@ -569,8 +587,8 @@ async function runAIRead(N,btn){
         if(i>=full.length){ clearInterval(timer); done(); }
       },16);
     });
-    // 收尾：接付费深度钩
-    out.innerHTML=esc(full)+
+    // 收尾：打字机结束后整体渲染成 Markdown(有标题/加粗/层次) + 接付费深度钩
+    out.innerHTML='<div class="md-body">'+mdToHtml(full)+'</div>'+
       '<div class="read-hook">✦ 以上是文澜阁 · 神仙虾为你读的核心。这一生的事业、正缘、财富三条线如何<b>逐年流转</b>、何时是你的修行关口——若想逐年看透，可往下扫码，请神仙虾为你出一份完整流年报告。</div>';
     btn.textContent="✓ 解读完成 · 可重新生成";
     btn.disabled=false;
@@ -582,6 +600,29 @@ async function runAIRead(N,btn){
   }
 }
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+// 轻量 Markdown 渲染(先 esc 防 XSS, 再按行解析标题/列表/引用/分隔, 行内处理加粗/斜体)
+function mdToHtml(src){
+  // 行内: 加粗 **x** / 斜体 *x* (在已 esc 的文本上做, 安全)
+  const inline=t=>esc(t)
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*([^*]|$)/g,'$1<em>$2</em>$3');
+  const lines=src.split('\n');
+  let html='', inList=false;
+  const closeList=()=>{ if(inList){html+='</ul>';inList=false;} };
+  for(let raw of lines){
+    const line=raw.replace(/\s+$/,'');
+    if(/^\s*$/.test(line)){ closeList(); continue; }
+    let m;
+    if(/^\s*---+\s*$/.test(line)){ closeList(); html+='<hr class="md-hr">'; continue; }
+    if((m=line.match(/^(#{1,6})\s+(.*)$/))){ closeList(); const lv=Math.min(m[1].length,4); html+=`<div class="md-h md-h${lv}">${inline(m[2])}</div>`; continue; }
+    if((m=line.match(/^\s*>\s?(.*)$/))){ closeList(); html+=`<blockquote class="md-q">${inline(m[1])}</blockquote>`; continue; }
+    if((m=line.match(/^\s*[-*]\s+(.*)$/))){ if(!inList){html+='<ul class="md-ul">';inList=true;} html+=`<li>${inline(m[1])}</li>`; continue; }
+    closeList(); html+=`<p class="md-p">${inline(line)}</p>`;
+  }
+  closeList();
+  return html;
+}
 
 // 用户视角的友好分享文案(自带全部数据, 用户私信发给Athena, 她直接喂小龙虾)
 function buildUserShare(N){
@@ -595,6 +636,38 @@ function buildUserShare(N){
     +`【进阶】${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join("、")}\n`
     +`【相位】${N.asp.map(x=>x.t).join("、")}\n`
     +`——想请玄玑老师帮我深度解读一下 🙏`;
+}
+
+// 盘指纹:出生数据→稳定哈希ID(唯一锚点,不含隐私明文; 同盘任何设备任何时候都得同一个ID)
+function panFingerprint(N){
+  const m=N.meta;
+  const s=`${m.y}-${m.mo}-${m.d}-${m.h}-${m.mi}-${m.tz}-${(m.lat||0).toFixed(2)}-${(m.lon||0).toFixed(2)}-${m.sex}`;
+  let h=5381; for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))>>>0; }
+  return "p"+h.toString(36);
+}
+
+// 只把"星盘数据"格式化成文本(给后端拼神仙虾prompt用; 不含任何角色设定)
+// + 算元素配比和关键身位特征(给后端按身位调语气用)
+function buildNatalData(N){
+  const a=N.angles,P=N.planets,m=N.meta;
+  const planetStr=P.map(p=>`  ${p.n} ${p.sign}${p.deg}°${p.rx?'(逆)':''} 第${p.house}宫`).join("\n");
+  const houseStr=N.houses.map(h=>`${h.num}宫${h.sign}${h.deg}°`).join(" / ");
+  const data=`出生：${m.y}-${String(m.mo).padStart(2,'0')}-${String(m.d).padStart(2,'0')} ${String(m.h).padStart(2,'0')}:${String(m.mi).padStart(2,'0')}（+${m.tz} ${m.city}）｜性别：${m.sex}\n`
+    +`日月升：太阳${P[0].sign}${P[0].deg}° / 月亮${P[1].sign}${P[1].deg}° / 上升${a.asc.sign}${a.asc.deg}°\n`
+    +`行星与凯龙（落座·落宫，含凯龙=此生最深的伤口与由伤生出的疗愈天赋）：\n${planetStr}\n`
+    +`四轴：上升${a.asc.sign}${a.asc.deg}° / 天顶MC${a.mc.sign}${a.mc.deg}° / 下降${a.dsc.sign}${a.dsc.deg}° / 天底IC${a.ic.sign}${a.ic.deg}°\n`
+    +`进阶点位：${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join(" / ")}（北交=此生功课方向、南交=带来的旧惯性、莉莉丝=隐秘欲望与不被驯服的部分）\n`
+    +`十二宫（Placidus宫制）：${houseStr}\n`
+    +`本命相位：${N.asp.map(x=>x.t).join(" / ")}`;
+  // 元素配比(给后端判身位调语气): 统计十大行星落座的火土风水
+  const cnt={火:0,土:0,风:0,水:0};
+  P.forEach(p=>{const e=ELEMENT[p.sign]; if(e)cnt[e]++;});
+  return {
+    data,
+    sex:m.sex,
+    elements:cnt,
+    sunSign:P[0].sign, moonSign:P[1].sign, ascSign:a.asc.sign
+  };
 }
 
 function buildNatalPrompt(N){
