@@ -111,9 +111,14 @@ function callMiniMaxStream(prompt, res) {
       }
     }
 
+    let gotAnyContent = false; // 是否从上游拿到过任何正文
+    let rawErr = "";           // 上游非流式错误体（如鉴权失败/模型错/余额不足）
+
     up.setEncoding("utf8");
     up.on("data", (chunk) => {
       buf += chunk;
+      // 上游若不是 200（鉴权/模型名/限流等），通常返回一坨普通 JSON 而非 SSE，先留存
+      if (up.statusCode && up.statusCode !== 200) { rawErr += chunk; return; }
       let idx;
       while ((idx = buf.indexOf("\n\n")) !== -1) {
         const evt = buf.slice(0, idx);
@@ -125,10 +130,13 @@ function callMiniMaxStream(prompt, res) {
           if (!data || data === "[DONE]") continue;
           try {
             const j = JSON.parse(data);
+            // 上游业务错误（鉴权/模型/余额）藏在 base_resp
+            if (j.base_resp && j.base_resp.status_code && j.base_resp.status_code !== 0) {
+              rawErr = `MiniMax错误[${j.base_resp.status_code}]: ${j.base_resp.status_msg || ""}`;
+            }
             const delta = j.choices && j.choices[0] && (j.choices[0].delta || j.choices[0].message);
-            // 只取正文 content，忽略 reasoning_content（思考链）
             const text = delta && (delta.content || "");
-            if (text) feed(text);
+            if (text) { gotAnyContent = true; feed(text); }
           } catch (e) {
             // 非 JSON 行忽略（心跳等）
           }
@@ -136,14 +144,20 @@ function callMiniMaxStream(prompt, res) {
       }
     });
     up.on("end", () => {
-      // 收尾：若全程没越过 think（极端情况整段都在憋），把残留正文吐出兜底
+      // 收尾：若憋在 think 里没放行，把残留正文捞出来兜底
       if (!started && acc) {
         const m = acc.match(/<\/think>/i);
-        res.write(m ? acc.slice(m.index + m[0].length).replace(/^\s+/, "") : acc.replace(/<\/?think>/gi, ""));
+        const tail = m ? acc.slice(m.index + m[0].length).replace(/^\s+/, "") : acc.replace(/<\/?think>/gi, "");
+        if (tail) { gotAnyContent = true; res.write(tail); }
+      }
+      // 全程一个字正文都没拿到 → 把真实原因吐给前端（不再静默空白）
+      if (!gotAnyContent) {
+        const reason = rawErr || (up.statusCode !== 200 ? `上游HTTP ${up.statusCode}` : "上游未返回任何正文（可能模型名有误或思考占满）");
+        res.write(`\n⚠️ 解读生成失败：${reason}\n请稍后重试，或扫码请玄玑老师人工精解。`);
       }
       res.end();
     });
-    up.on("error", () => { try { res.end(); } catch (_) {} });
+    up.on("error", () => { try { res.write("\n⚠️ 连接占星师超时，请重试。"); res.end(); } catch (_) {} });
   });
 
   upstream.on("error", (err) => {
