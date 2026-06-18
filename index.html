@@ -493,18 +493,29 @@ async function runAIRead(N,btn){
   if(!out) return;
   // prompt 已在 buildNatalPrompt 里写进隐藏的 #prompt 框
   const prompt=document.getElementById("prompt").textContent;
-  btn.disabled=true; btn.textContent="✨ 神仙虾正在为你推演…";
+  btn.disabled=true; btn.textContent="✨ 占星师正在为您揭秘…";
   out.style.display="block";
-  out.innerHTML='<span style="color:var(--soft)">文澜阁 · 神仙虾正在为你推演星盘，请稍候（约三五十秒，越精准越值得等）…</span><span class="typing"></span>';
   out.scrollIntoView({behavior:"smooth",block:"center"});
+  // 等待轮播文案(化解三五十秒等待焦虑+仪式感)
+  const waitMsgs=[
+    "🔮 伟大的占星师正在为您揭秘基因代码……",
+    "✨ 正在比对星盘与您的灵魂底色……",
+    "🌙 正在读取您出厂自带的人生说明书……",
+    "💫 亲爱的您，请耐心等待，越精准越值得等……",
+  ];
+  let wi=0;
+  const renderWait=()=>{ out.innerHTML='<span style="color:var(--gold);font-size:15px;line-height:2">'+waitMsgs[wi%waitMsgs.length]+'</span><span class="typing"></span>'; };
+  renderWait();
+  const waitTimer=setInterval(()=>{ wi++; renderWait(); },3500);
   try{
     const resp=await fetch("/api/read",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({prompt})
     });
-    if(!resp.ok) throw new Error("bad response");
     const text=await resp.text();
+    clearInterval(waitTimer); // 停等待轮播
+    if(!resp.ok) throw new Error("bad response");
     if(!text || text.trim().length<10) throw new Error("empty");
     // 打字机效果逐字呈现(后端已一次性返回全文)
     out.innerHTML="";
@@ -525,6 +536,7 @@ async function runAIRead(N,btn){
     btn.textContent="✓ 解读完成 · 可重新生成";
     btn.disabled=false;
   }catch(e){
+    clearInterval(waitTimer); // 停等待轮播
     out.innerHTML='<span style="color:var(--soft)">神仙虾暂时连不上 😣 请稍后再点一次，或往下扫码请玄玑老师亲自为你精解。</span>';
     btn.textContent="✨ 重试一次";
     btn.disabled=false;
