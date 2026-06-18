@@ -205,8 +205,34 @@ function serveStatic(req, res) {
   });
 }
 
+// ---------- 诊断：线上服务自测能否连到 MiniMax ----------
+function diag(res) {
+  const t0 = Date.now();
+  const out = (o) => { res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }); res.end(JSON.stringify(o, null, 2)); };
+  const apiKey = process.env.MINIMAX_API_KEY || "";
+  const payload = JSON.stringify({
+    model: process.env.MINIMAX_MODEL || "MiniMax-M3",
+    stream: false, max_completion_tokens: 30,
+    thinking: { type: "disabled" },
+    messages: [{ role: "user", content: "说一个字" }],
+  });
+  const r = https.request({
+    hostname: "api.minimaxi.com", path: "/v1/chat/completions", method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "Content-Length": Buffer.byteLength(payload) },
+    timeout: 25000,
+  }, (up) => {
+    let b = ""; up.setEncoding("utf8");
+    up.on("data", (c) => b += c);
+    up.on("end", () => out({ ok: true, ms: Date.now() - t0, status: up.statusCode, keyLen: apiKey.length, body: b.slice(0, 400) }));
+  });
+  r.on("timeout", () => { r.destroy(); out({ ok: false, ms: Date.now() - t0, err: "连接 MiniMax 超时(25s)——Zeabur到MiniMax网络不通", keyLen: apiKey.length }); });
+  r.on("error", (e) => out({ ok: false, ms: Date.now() - t0, err: String(e.message || e), keyLen: apiKey.length }));
+  r.write(payload); r.end();
+}
+
 // ---------- 路由 ----------
 const server = http.createServer((req, res) => {
+  if (req.url.split("?")[0] === "/api/diag") { diag(res); return; }
   if (req.url.split("?")[0] === "/api/read" && req.method === "POST") {
     let body = "";
     req.on("data", (c) => {
