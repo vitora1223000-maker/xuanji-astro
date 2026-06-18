@@ -4,9 +4,8 @@
 // Key 全程只从环境变量读，绝不写进代码、绝不上 GitHub。
 //
 // 需要的环境变量（在 Zeabur 后台「环境变量」里填，不要写进任何文件）：
-//   MINIMAX_API_KEY   —— MiniMax 接口密钥（全模型通用）
-//   MINIMAX_GROUP_ID  —— MiniMax GroupId
-//   MINIMAX_MODEL     —— 用哪个模型，如 MiniMax-Text-01（控制台确认可用档后填）
+//   MINIMAX_API_KEY   —— MiniMax 接口密钥（OpenAI 兼容接口只需这一个，不需要 GroupId）
+//   MINIMAX_MODEL     —— 用哪个模型，默认 MiniMax-M2.7-highspeed（可换 MiniMax-M3 / MiniMax-M2.7）
 //
 // 零第三方依赖：只用 Node 内置 http / fs / https。
 
@@ -30,34 +29,34 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-// ---------- MiniMax 流式调用 ----------
-// 官方 ChatCompletion v2 接口：POST https://api.minimaxi.com/v1/text/chatcompletion_v2?GroupId=xxx
+// ---------- MiniMax 流式调用（OpenAI 兼容接口）----------
+// POST https://api.minimaxi.com/v1/chat/completions —— 只需 Authorization: Bearer KEY，不要 GroupId。
 // stream:true 时返回 SSE（data: {...}\n\n），逐块把增量文本写回前端，规避长输出超时。
 function callMiniMaxStream(prompt, res) {
   const apiKey = process.env.MINIMAX_API_KEY;
-  const groupId = process.env.MINIMAX_GROUP_ID;
-  const model = process.env.MINIMAX_MODEL || "MiniMax-Text-01";
+  const model = process.env.MINIMAX_MODEL || "MiniMax-M2.7-highspeed";
 
-  if (!apiKey || !groupId) {
+  if (!apiKey) {
     res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({ error: "服务端未配置 MINIMAX_API_KEY / MINIMAX_GROUP_ID 环境变量" }));
+    res.end(JSON.stringify({ error: "服务端未配置 MINIMAX_API_KEY 环境变量" }));
     return;
   }
 
   const payload = JSON.stringify({
     model,
     stream: true,
-    max_tokens: 8192,
-    temperature: 0.9,
+    max_completion_tokens: 16384,
+    temperature: 1,
+    top_p: 0.95,
     messages: [
-      { role: "system", name: "MM Assistant", content: "你是一位顶级占星师，严格按用户给定的角色设定、合规铁律和六块结构作答。" },
-      { role: "user", name: "用户", content: prompt },
+      { role: "system", content: "你是一位顶级占星师，严格按用户给定的角色设定、合规铁律和六块结构作答。" },
+      { role: "user", content: prompt },
     ],
   });
 
   const options = {
     hostname: "api.minimaxi.com",
-    path: `/v1/text/chatcompletion_v2?GroupId=${encodeURIComponent(groupId)}`,
+    path: `/v1/chat/completions`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -75,10 +74,42 @@ function callMiniMaxStream(prompt, res) {
 
   const upstream = https.request(options, (up) => {
     let buf = "";
+    // ---- <think> 剥离状态机 ----
+    // M2.7 等思考模型会先输出 <think>...英文推理...</think> 再出正文。
+    // 这段推理绝不能给访客看（破坏"伟大占星师"沉浸感）。
+    // 策略：把增量文本累积进 acc，未见到 </think> 前不向前端吐字；
+    //       见到闭合标签后，只把其后的正文流出去。若整段无 think 标签则原样流。
+    let acc = "";        // 累积的 content 文本
+    let started = false; // 是否已越过 think 段、开始向前端输出
+    let everSawThink = false;
+
+    function feed(text) {
+      if (started) { res.write(text); return; }
+      acc += text;
+      if (/<think>/i.test(acc)) everSawThink = true;
+      if (everSawThink) {
+        const m = acc.match(/<\/think>/i);
+        if (m) {
+          started = true;
+          const tail = acc.slice(m.index + m[0].length).replace(/^\s+/, "");
+          if (tail) res.write(tail);
+          acc = "";
+        }
+        // 还没见到 </think>：继续憋着等
+      } else {
+        // 累积里还没出现 <think>。但开头可能是被拆开的 "<thi"，
+        // 只有当 acc 不可能再成为 <think> 前缀时，才安全地放行。
+        if (acc.length > 8 && !"<think>".startsWith(acc.slice(0, 7).toLowerCase())) {
+          started = true;
+          res.write(acc);
+          acc = "";
+        }
+      }
+    }
+
     up.setEncoding("utf8");
     up.on("data", (chunk) => {
       buf += chunk;
-      // SSE 以 \n\n 分隔事件
       let idx;
       while ((idx = buf.indexOf("\n\n")) !== -1) {
         const evt = buf.slice(0, idx);
@@ -91,15 +122,23 @@ function callMiniMaxStream(prompt, res) {
           try {
             const j = JSON.parse(data);
             const delta = j.choices && j.choices[0] && (j.choices[0].delta || j.choices[0].message);
+            // 只取正文 content，忽略 reasoning_content（思考链）
             const text = delta && (delta.content || "");
-            if (text) res.write(text);
+            if (text) feed(text);
           } catch (e) {
             // 非 JSON 行忽略（心跳等）
           }
         }
       }
     });
-    up.on("end", () => res.end());
+    up.on("end", () => {
+      // 收尾：若全程没越过 think（极端情况整段都在憋），把残留正文吐出兜底
+      if (!started && acc) {
+        const m = acc.match(/<\/think>/i);
+        res.write(m ? acc.slice(m.index + m[0].length).replace(/^\s+/, "") : acc.replace(/<\/?think>/gi, ""));
+      }
+      res.end();
+    });
     up.on("error", () => { try { res.end(); } catch (_) {} });
   });
 
