@@ -487,7 +487,7 @@ function renderNatalResult(N){
   };
 }
 
-// 流式 AI 解读：把现成的 buildNatalPrompt 生成的 p 发给 /api/read，逐段渲染
+// AI 解读：非流式调 /api/read 拿完整解读，前端用打字机效果逐字呈现（保留沉浸感）
 async function runAIRead(N,btn){
   const out=document.getElementById("aiReadOut");
   if(!out) return;
@@ -495,28 +495,32 @@ async function runAIRead(N,btn){
   const prompt=document.getElementById("prompt").textContent;
   btn.disabled=true; btn.textContent="✨ 神仙虾正在为你推演…";
   out.style.display="block";
-  out.innerHTML='<span style="color:var(--soft)">文澜阁 · 神仙虾正在为你落笔，请稍候（约几十秒，越精准越值得等）…</span><span class="typing"></span>';
-  let acc="";
+  out.innerHTML='<span style="color:var(--soft)">文澜阁 · 神仙虾正在为你推演星盘，请稍候（约三五十秒，越精准越值得等）…</span><span class="typing"></span>';
+  out.scrollIntoView({behavior:"smooth",block:"center"});
   try{
     const resp=await fetch("/api/read",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({prompt})
     });
-    if(!resp.ok||!resp.body){ throw new Error("bad response"); }
-    const reader=resp.body.getReader();
-    const dec=new TextDecoder();
-    let first=true;
-    while(true){
-      const {done,value}=await reader.read();
-      if(done) break;
-      acc+=dec.decode(value,{stream:true});
-      if(first){ out.innerHTML=""; first=false; }
-      out.innerHTML=esc(acc)+'<span class="typing"></span>';
-      out.scrollIntoView({behavior:"smooth",block:"end"});
-    }
-    // 收尾：去掉光标 + 接付费深度钩
-    out.innerHTML=esc(acc)+
+    if(!resp.ok) throw new Error("bad response");
+    const text=await resp.text();
+    if(!text || text.trim().length<10) throw new Error("empty");
+    // 打字机效果逐字呈现(后端已一次性返回全文)
+    out.innerHTML="";
+    const full=text;
+    let i=0;
+    const step=Math.max(2,Math.round(full.length/600)); // 控制在~几秒内打完
+    await new Promise(done=>{
+      const timer=setInterval(()=>{
+        i+=step;
+        out.innerHTML=esc(full.slice(0,i))+(i<full.length?'<span class="typing"></span>':'');
+        if(i%40===0) out.scrollIntoView({behavior:"smooth",block:"end"});
+        if(i>=full.length){ clearInterval(timer); done(); }
+      },16);
+    });
+    // 收尾：接付费深度钩
+    out.innerHTML=esc(full)+
       '<div class="read-hook">✦ 以上是文澜阁 · 神仙虾为你读的核心。这一生的事业、正缘、财富三条线如何<b>逐年流转</b>、何时是你的修行关口——若想逐年看透，可往下扫码，请神仙虾为你出一份完整流年报告。</div>';
     btn.textContent="✓ 解读完成 · 可重新生成";
     btn.disabled=false;
