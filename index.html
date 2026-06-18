@@ -479,10 +479,10 @@ function renderNatalResult(N){
    ${P.map(p=>`<div class="planet"><span class="pname">${p.n}</span><span class="ppos">${p.sign} ${p.deg}°${String(p.min).padStart(2,'0')}' · 第${p.house}宫</span>${p.rx?'<span class="rx">℞ 逆</span>':''}</div>`).join('')}
    <h2 style="margin-top:14px">✦ 四轴</h2>
    <div class="axis">
-     <span class="ax">上升 ${a.asc.sign}${a.asc.deg}°</span>
-     <span class="ax">天顶MC ${a.mc.sign}${a.mc.deg}°</span>
-     <span class="ax">下降 ${a.dsc.sign}${a.dsc.deg}°</span>
-     <span class="ax">天底IC ${a.ic.sign}${a.ic.deg}°</span>
+     <span class="ax">上升 ${a.asc.sign}${a.asc.deg}° · 第1宫</span>
+     <span class="ax">天顶MC ${a.mc.sign}${a.mc.deg}° · 第10宫</span>
+     <span class="ax">下降 ${a.dsc.sign}${a.dsc.deg}° · 第7宫</span>
+     <span class="ax">天底IC ${a.ic.sign}${a.ic.deg}° · 第4宫</span>
    </div>
    <h2 style="margin-top:14px">✦ 进阶点位</h2>
    <div class="axis">
@@ -532,7 +532,7 @@ async function runAIRead(N,btn){
   if(!out) return;
   // prompt 已在 buildNatalPrompt 里写进隐藏的 #prompt 框
   const prompt=document.getElementById("prompt").textContent;
-  btn.disabled=true; btn.textContent="✨ 占星师正在为您揭秘…";
+  btn.disabled=true; btn.textContent="✨ 伟大的占星师正在为您揭秘…";
   out.style.display="block";
   out.scrollIntoView({behavior:"smooth",block:"center"});
   // 等待轮播文案(化解三五十秒等待焦虑+仪式感)
