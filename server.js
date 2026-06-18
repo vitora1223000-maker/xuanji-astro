@@ -32,9 +32,12 @@ const MIME = {
 // ---------- MiniMax 流式调用（OpenAI 兼容接口）----------
 // POST https://api.minimaxi.com/v1/chat/completions —— 只需 Authorization: Bearer KEY，不要 GroupId。
 // stream:true 时返回 SSE（data: {...}\n\n），逐块把增量文本写回前端，规避长输出超时。
+//
+// ⭐关键：用 MiniMax-M3 + thinking:disabled —— M3 是最强模型，关掉思考链后
+// 直接出干净正文（不再有 <think> 英文推理、不会被思考 token 吃掉正文）。
 function callMiniMaxStream(prompt, res) {
   const apiKey = process.env.MINIMAX_API_KEY;
-  const model = process.env.MINIMAX_MODEL || "MiniMax-M2.7-highspeed";
+  const model = process.env.MINIMAX_MODEL || "MiniMax-M3";
 
   if (!apiKey) {
     res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
@@ -45,6 +48,7 @@ function callMiniMaxStream(prompt, res) {
   const payload = JSON.stringify({
     model,
     stream: true,
+    thinking: { type: "disabled" },   // 关思考链：正文直接出，无 <think> 段
     max_completion_tokens: 16384,
     temperature: 1,
     top_p: 0.95,
