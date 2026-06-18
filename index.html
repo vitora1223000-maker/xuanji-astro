@@ -84,6 +84,15 @@
   .ask-qr .qr-text{text-align:left;font-size:14px;line-height:1.6;color:var(--gold);font-weight:600;letter-spacing:.5px}
   .ask-qr .qr-text .qr-sub{font-size:11.5px;color:var(--soft);font-weight:400;line-height:1.5;display:inline-block;margin-top:6px}
   .ask-card .ask-or{font-size:12px;color:var(--soft);letter-spacing:3px;margin:12px 0 12px;opacity:.6}
+  .read-card{margin-top:18px;padding:20px 18px;border-radius:18px;background:linear-gradient(160deg,rgba(169,143,216,.14),rgba(40,30,70,.25));border:1px solid var(--line);text-align:center}
+  .read-card .ask-title{font-size:17px;font-weight:700;color:var(--gold);margin-bottom:10px;letter-spacing:1px}
+  .read-card .ask-desc{font-size:13.5px;line-height:1.9;color:var(--soft);margin-bottom:14px}
+  .read-btn{font-size:15px}
+  .read-by{font-size:11.5px;color:var(--soft);letter-spacing:2px;margin-top:9px;opacity:.7}
+  .read-out{margin-top:18px;text-align:left;font-size:14.5px;line-height:1.95;color:var(--text,#e8e4f3);white-space:pre-wrap;word-break:break-word;background:rgba(20,16,38,.5);border-radius:14px;padding:18px 16px;border:1px solid var(--line);min-height:40px}
+  .read-out .typing{display:inline-block;width:7px;height:15px;background:var(--gold);margin-left:2px;animation:blink 1s steps(2) infinite;vertical-align:text-bottom}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .read-hook{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);font-size:13px;color:var(--gold);line-height:1.8}
 </style>
 </head>
 <body>
@@ -446,9 +455,16 @@ function renderNatalResult(N){
    </div>
    <h2 style="margin-top:14px">✦ 本命相位</h2>
    <div class="aspects">${aspectTags(N.asp)}</div>
+   <div class="read-card">
+     <div class="ask-title">✦ 你自己的操作说明书 ✦</div>
+     <div class="ask-desc">这张盘，就是您出厂自带的说明书——您是谁、您的天赋怎么用、感情与正缘、这一生的功课。<br>星盘只是骨架，请<b>玄玑天庭 · 文澜阁 · 神仙虾</b>当场为您逐一解读：</div>
+     <button class="btn read-btn" id="aiRead">✨ 让伟大的占星师为我解读</button>
+     <div class="read-by">— 解读者 · 玄玑天庭 文澜阁 · 神仙虾 —</div>
+     <div id="aiReadOut" class="read-out" style="display:none"></div>
+   </div>
    <div class="ask-card">
-     <div class="ask-title">✦ 想要一份「你自己的操作说明书」吗？</div>
-     <div class="ask-desc">这张盘，就是你出厂自带的说明书——你是谁、你的天赋怎么用、感情与正缘、这一生的功课。<br>星盘只是骨架，需要为你逐一读出来。两种方式找玄玑老师，亲自为你深度解读：</div>
+     <div class="ask-title">✦ 想要更深的精解吗？</div>
+     <div class="ask-desc">上面是文澜阁神仙虾为你读的核心。若想把事业、正缘、财富这三条线<b>逐年看透</b>，或亲自问一问你这一生的修行课题——</div>
      <div class="ask-qr">
        <img src="qr-only.png" alt="玄玑老师 · 小红书二维码" class="qr-img">
        <div class="qr-text">扫码在小红书<br>找「山玉居士」<br><span class="qr-sub">以占星解构人性<br>用数学逻辑主宰人生</span></div>
@@ -457,6 +473,9 @@ function renderNatalResult(N){
      <button class="btn" id="copyShare">📋 复制我的星盘 · 私信发给玄玑老师</button>
    </div>`;
   document.getElementById("natalResult").innerHTML=html;
+  // 绑定"让玄玑当场深度解读"——流式调后端 /api/read
+  const ar=document.getElementById("aiRead");
+  if(ar) ar.onclick=()=>runAIRead(N,ar);
   // 绑定"复制求解读"
   const cs=document.getElementById("copyShare");
   if(cs) cs.onclick=()=>{
@@ -467,6 +486,47 @@ function renderNatalResult(N){
     }).catch(()=>{ alert("复制失败，请长按选中下面文字手动复制：\n\n"+txt); });
   };
 }
+
+// 流式 AI 解读：把现成的 buildNatalPrompt 生成的 p 发给 /api/read，逐段渲染
+async function runAIRead(N,btn){
+  const out=document.getElementById("aiReadOut");
+  if(!out) return;
+  // prompt 已在 buildNatalPrompt 里写进隐藏的 #prompt 框
+  const prompt=document.getElementById("prompt").textContent;
+  btn.disabled=true; btn.textContent="✨ 神仙虾正在为你推演…";
+  out.style.display="block";
+  out.innerHTML='<span style="color:var(--soft)">文澜阁 · 神仙虾正在为你落笔，请稍候（约几十秒，越精准越值得等）…</span><span class="typing"></span>';
+  let acc="";
+  try{
+    const resp=await fetch("/api/read",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({prompt})
+    });
+    if(!resp.ok||!resp.body){ throw new Error("bad response"); }
+    const reader=resp.body.getReader();
+    const dec=new TextDecoder();
+    let first=true;
+    while(true){
+      const {done,value}=await reader.read();
+      if(done) break;
+      acc+=dec.decode(value,{stream:true});
+      if(first){ out.innerHTML=""; first=false; }
+      out.innerHTML=esc(acc)+'<span class="typing"></span>';
+      out.scrollIntoView({behavior:"smooth",block:"end"});
+    }
+    // 收尾：去掉光标 + 接付费深度钩
+    out.innerHTML=esc(acc)+
+      '<div class="read-hook">✦ 以上是文澜阁 · 神仙虾为你读的核心。这一生的事业、正缘、财富三条线如何<b>逐年流转</b>、何时是你的修行关口——若想逐年看透，可往下扫码，请神仙虾为你出一份完整流年报告。</div>';
+    btn.textContent="✓ 解读完成 · 可重新生成";
+    btn.disabled=false;
+  }catch(e){
+    out.innerHTML='<span style="color:var(--soft)">神仙虾暂时连不上 😣 请稍后再点一次，或往下扫码请玄玑老师亲自为你精解。</span>';
+    btn.textContent="✨ 重试一次";
+    btn.disabled=false;
+  }
+}
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
 // 用户视角的友好分享文案(自带全部数据, 用户私信发给Athena, 她直接喂小龙虾)
 function buildUserShare(N){
