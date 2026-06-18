@@ -181,6 +181,14 @@ function callMiniMaxStream(prompt, res, raw) {
         const m = content.match(/<\/think>/i);
         if (m) content = content.slice(m.index + m[0].length);
         content = content.replace(/<\/?think>/gi, "").replace(/^\s+/, "");
+        // 🔴去重：M3 偶尔把整份报告写两遍。定场诗开头"盘古开天辟地之前"是唯一标志，
+        // 若它第二次出现，说明从那里起是重复——只保留第一份，砍掉重复部分。
+        const mark = "盘古开天辟地之前";
+        const first = content.indexOf(mark);
+        if (first !== -1) {
+          const second = content.indexOf(mark, first + mark.length);
+          if (second !== -1) content = content.slice(0, second).replace(/[\s\-—–]+$/,"");
+        }
         if (raw) { res.end(body.slice(0, 4000)); return; }
         res.end(content || "\n⚠️ 占星师暂时没有给出解读，请重试。");
       } catch (e) {
