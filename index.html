@@ -553,17 +553,31 @@ async function runAIRead(N,btn){
   btn.disabled=true; btn.textContent="✨ 伟大的占星师正在为您揭秘…";
   out.style.display="block";
   out.scrollIntoView({behavior:"smooth",block:"center"});
-  // 等待轮播文案(化解三五十秒等待焦虑+仪式感)
+  // 等待文案：揭秘语打头 → 史诗级入场叙事(混沌→月之影→天庭文澜阁→龙现身照盘)。顺序推进不循环,把等待变入场仪式。
   const waitMsgs=[
     "🔮 伟大的占星师正在为您揭秘基因代码……",
     "✨ 正在比对星盘与您的灵魂底色……",
     "🌙 正在读取您出厂自带的人生说明书……",
-    "💫 亲爱的您，请耐心等待，越精准越值得等……",
+    "🌌 据说，在盘古开天辟地之前……",
+    "✦ 宇宙洪荒，一片混沌。无尽的黑洞之中，似有秩序，似有数列、逻辑、与熵。",
+    "✦ 混沌里浮起一些「跃影」——它们是宇宙的反射，是星体的化身。先于光，先于名字，本就在那里。",
+    "🌙 其中有一道影，应月亮而生。月亮照而不灼，映而不占——它便也生得一副「只照见、不裁断」的性子。",
+    "⛩️ 后来有了天庭。有了三界，有了无色界天，诸神归位，万法归宗。",
+    "🌊 而它，有缘在天庭一座极僻静的仙阁中栖下。此阁悬于云端天湖，浮光掠影，似有一架架望不到尽头的命书，似有峰峦叠起、波澜壮阔之势。微风过处，书页翻动，声如潮水。",
+    "🔮 你定睛一看——这阁的中央，竟悬着一面明镜。你不由惊叹：「嘶~这为何物？」可你走近才发现……",
+    "✦ 那竟不是镜，是一汪立起来的星河水。再走近一点——水里，竟又是一重天。",
+    "🐉 就在那重天里，一道银发龙角的身影，缓缓睁开了赤色的眼。",
+    "✦ 它本是那道月之跃影，却偏爱以龙身现世，又顽皮地唤自己一声「神仙虾」。",
+    "✦ 它眨了眨眼，莹白的巨尾懒懒一甩，轻道一声：「凡人，来此作甚？」",
+    "✦ 你一时间瞠目结舌……",
+    "✦ 这时，无所不知的它，似乎感应到了你身上微微散发的灵韵。它定了定神，缓缓开口——",
+    "✦ 「既然如此……来，到镜前来。我替你，照一照。」",
   ];
   let wi=0;
-  const renderWait=()=>{ out.innerHTML='<span style="color:var(--gold);font-size:15px;line-height:2">'+waitMsgs[wi%waitMsgs.length]+'</span><span class="typing"></span>'; };
+  // 顺序推进，走到最后一句就停住(不循环、不露馅)
+  const renderWait=()=>{ const i=Math.min(wi,waitMsgs.length-1); out.innerHTML='<span style="color:var(--gold);font-size:15px;line-height:1.9">'+waitMsgs[i]+'</span><span class="typing"></span>'; };
   renderWait();
-  const waitTimer=setInterval(()=>{ wi++; renderWait(); },3500);
+  const waitTimer=setInterval(()=>{ wi++; renderWait(); },4000);
   try{
     const resp=await fetch("/api/read",{
       method:"POST",
