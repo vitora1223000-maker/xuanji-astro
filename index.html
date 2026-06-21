@@ -126,14 +126,14 @@
   #loginOverlay .lg-back{text-align:center;font-size:12px;color:var(--soft);margin-top:12px;cursor:pointer}
   #loginOverlay .hidden{display:none}
   /* 右上角账号角标 */
-  #acctBadge{position:fixed;top:calc(env(safe-area-inset-top, 0px) + 8px);right:12px;z-index:900;display:flex;align-items:center;gap:8px;background:rgba(20,22,46,.92);border:1px solid var(--line);border-radius:20px;padding:5px 8px 5px 12px;font-size:12px;color:var(--soft);backdrop-filter:blur(4px);box-shadow:0 2px 12px rgba(0,0,0,.4)}
+  #acctBadge{position:fixed;top:calc(env(safe-area-inset-top, 0px) + 8px);right:12px;z-index:900;display:flex;align-items:center;background:rgba(20,22,46,.92);border:1px solid var(--line);border-radius:20px;padding:4px;font-size:12px;color:var(--soft);backdrop-filter:blur(4px);box-shadow:0 2px 12px rgba(0,0,0,.4)}
   #acctBadge #acctEmail{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #acctBadge #acctLogout{background:none;border:0;color:var(--accent);font-size:12px;cursor:pointer;padding:2px 6px;border-radius:12px}
   #acctBadge #acctLogout:hover{background:rgba(201,168,255,.12)}
 </style>
 </head>
 <body>
-<div id="acctBadge" style="display:none"><span id="acctEmail"></span><button id="acctLogout">登出</button></div>
+<div id="acctBadge" style="display:none"><button id="acctLogout">登出</button></div>
 <div class="wrap">
   <h1>✦ 玄玑 · Astro ✦</h1>
   <div class="sub" id="now">解构人性 · 主宰人生 · 游戏玩家从不做 NPC</div>
@@ -168,10 +168,7 @@ async function refreshUser(){
 // 右上角账号角标：登录后显示邮箱+登出
 function updateAcctBadge(){
   const b=document.getElementById("acctBadge"); if(!b) return;
-  if(_curUser){
-    document.getElementById("acctEmail").textContent="📧 "+_curUser.email;
-    b.style.display="flex";
-  }else{ b.style.display="none"; }
+  b.style.display = _curUser ? "flex" : "none";
 }
 // 绑定登出 + 页面加载即检查登录态
 (function initAcct(){
