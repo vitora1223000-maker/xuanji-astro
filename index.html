@@ -127,12 +127,12 @@
   #loginOverlay .hidden{display:none}
   /* 右上角账号角标 */
   #acctBadge{position:fixed;top:calc(env(safe-area-inset-top, 0px) + 8px);right:12px;z-index:900;display:flex;align-items:center;background:rgba(20,22,46,.92);border:1px solid var(--line);border-radius:20px;padding:4px;font-size:12px;color:var(--soft);backdrop-filter:blur(4px);box-shadow:0 2px 12px rgba(0,0,0,.4)}
-  #acctBadge #acctLogout{background:none;border:0;color:var(--accent);font-size:12px;cursor:pointer;padding:2px 6px;border-radius:12px}
-  #acctBadge #acctLogout:hover{background:rgba(201,168,255,.12)}
+  #acctBadge #acctBtn{background:none;border:0;color:var(--accent);font-size:12px;cursor:pointer;padding:3px 10px;border-radius:14px}
+  #acctBadge #acctBtn:active{background:rgba(201,168,255,.15)}
 </style>
 </head>
 <body>
-<div id="acctBadge" style="display:none"><button id="acctLogout">登出</button></div>
+<div id="acctBadge"><button id="acctBtn">登入</button></div>
 <div class="wrap">
   <h1>✦ 玄玑 · Astro ✦</h1>
   <div class="sub" id="now">解构人性 · 主宰人生 · 游戏玩家从不做 NPC</div>
@@ -166,14 +166,17 @@ async function refreshUser(){
 }
 // 右上角账号角标：登录后显示邮箱+登出
 function updateAcctBadge(){
-  const b=document.getElementById("acctBadge"); if(!b) return;
-  b.style.display = _curUser ? "flex" : "none";
+  const btn=document.getElementById("acctBtn"); if(!btn) return;
+  btn.textContent = _curUser ? "登出" : "登入";
 }
 // 绑定登出 + 页面加载即检查登录态
 (function initAcct(){
   const bind=()=>{
-    const lo=document.getElementById("acctLogout");
-    if(lo) lo.onclick=async()=>{ if(sb) await sb.auth.signOut(); _curUser=null; updateAcctBadge(); };
+    const btn=document.getElementById("acctBtn");
+    if(btn) btn.onclick=async()=>{
+      if(_curUser){ if(sb) await sb.auth.signOut(); _curUser=null; updateAcctBadge(); }   // 已登录→登出
+      else { const u=await openLogin(); if(u){ _curUser=u; updateAcctBadge(); } }          // 未登录→弹登录
+    };
   };
   if(document.readyState!=="loading") bind(); else document.addEventListener("DOMContentLoaded",bind);
   refreshUser(); // 进页面就检查:已登录则显示角标
