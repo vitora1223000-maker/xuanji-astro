@@ -167,20 +167,15 @@ async function refreshUser(){
 // 存盘：把登录用户这张盘(出生信息+盘数据+解读)存进 Supabase charts 表(静默)
 async function saveChartToSupabase(N, reading){
   try{
-    // ——临时调试:把每步结果弹出来,定位为啥没存上(测完撤掉)——
-    if(!sb){ alert("调试:sb未初始化(supabase库没加载)"); return; }
-    if(!_curUser){ alert("调试:未登录(_curUser为空)→所以没存。解读时要先登录"); return; }
-    if(!N){ alert("调试:盘数据N为空"); return; }
+    if(!sb || !_curUser || !N) return;
     const m=N.meta||{};
     const birth_meta={ y:m.y, mo:m.mo, d:m.d, h:m.h, mi:m.mi, tz:m.tz, lat:m.lat, lon:m.lon, city:m.city, sex:m.sex };
     const chart_data={
       planets:(N.planets||[]).map(p=>({n:p.n,sign:p.sign,deg:p.deg,house:p.house,rx:p.rx})),
       angles:N.angles, points:N.points, aspects:(N.asp||[]).map(x=>x.t)
     };
-    const { error } = await sb.from("charts").insert({ user_id:_curUser.id, birth_meta, chart_data, reading:(reading||"").slice(0,8000) });
-    if(error){ alert("调试:存盘失败→ "+error.message); }
-    else { alert("调试:✅存盘成功!去charts表刷新看"); }
-  }catch(e){ alert("调试:存盘异常→ "+(e&&e.message)); }
+    await sb.from("charts").insert({ user_id:_curUser.id, birth_meta, chart_data, reading:(reading||"").slice(0,8000) });
+  }catch(_){ /* 存盘静默,失败不打扰用户 */ }
 }
 // 右上角账号角标：登录后显示邮箱+登出
 function updateAcctBadge(){
