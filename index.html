@@ -566,7 +566,7 @@ function initDateSelect(){
   const yS=document.getElementById("bY"),mS=document.getElementById("bM"),dS=document.getElementById("bD");
   if(!yS||yS.options.length) return;
   const opt=(v,t)=>`<option value="${v}">${t}</option>`;
-  let yh='<option value="">年</option>'; for(let y=2025;y>=1950;y--) yh+=opt(y,y+"年");
+  let yh='<option value="">年</option>'; for(let y=1950;y<=2025;y++) yh+=opt(y,y+"年");
   let mh='<option value="">月</option>'; for(let m=1;m<=12;m++) mh+=opt(m,m+"月");
   yS.innerHTML=yh; mS.innerHTML=mh;
   function fillDays(){
