@@ -170,7 +170,7 @@ function openLogin(){
       <div class="lg-box">
         <button class="lg-close" title="关闭">×</button>
         <div class="lg-title">✦ 留一缕灵韵</div>
-        <div class="lg-sub">留个邮箱，神仙虾方为你解读，也好记住你这张盘</div>
+        <div class="lg-sub">输入邮箱，开启重生之门</div>
         <div class="lg-step" data-step="1">
           <input class="lg-input" id="lgEmail" type="email" placeholder="你的邮箱" autocomplete="email">
           <button class="lg-btn" id="lgSend">寄出灵符</button>
@@ -482,7 +482,7 @@ function renderNatalTab(){
     <div class="card">
       <h2>✦ 排我的本命盘</h2>
       <div id="natalForm">
-        <div class="form-row"><label>出生日期</label><input type="date" id="bDate"></div>
+        <div class="form-row"><label>出生日期</label><select id="bY"></select><select id="bM"></select><select id="bD"></select></div>
         <div class="form-row"><label>出生时间</label><input type="time" id="bTime" value="12:00">
           <select id="bTz">
             <option value="8" selected>+8 北京/中国</option>
@@ -513,9 +513,27 @@ function renderNatalTab(){
     document.querySelectorAll("#bSex .opt").forEach(o=>o.onclick=()=>{document.querySelectorAll("#bSex .opt").forEach(x=>x.classList.remove("on"));o.classList.add("on");});
     document.getElementById("calcNatal").onclick=doCalcNatal;
     initCitySelect();
+    initDateSelect();
   }
   // prompt卡: natal模式下默认空着, 算完才填
   if(!natalResult) document.getElementById("prompt").textContent="排好盘后，这里会生成喂给伟大的占星师的深度解读 Prompt。";
+}
+
+// 生日：年/月/日三下拉（直接滚选，不弹iOS日历、不打勾、不退出）
+function initDateSelect(){
+  const yS=document.getElementById("bY"),mS=document.getElementById("bM"),dS=document.getElementById("bD");
+  if(!yS||yS.options.length) return;
+  const opt=(v,t)=>`<option value="${v}">${t}</option>`;
+  let yh='<option value="">年</option>'; for(let y=2025;y>=1950;y--) yh+=opt(y,y+"年");
+  let mh='<option value="">月</option>'; for(let m=1;m<=12;m++) mh+=opt(m,m+"月");
+  yS.innerHTML=yh; mS.innerHTML=mh;
+  function fillDays(){
+    const y=+yS.value||2000,m=+mS.value||1, dim=new Date(y,m,0).getDate();
+    const cur=dS.value; let dh='<option value="">日</option>';
+    for(let d=1;d<=dim;d++) dh+=opt(d,d+"日");
+    dS.innerHTML=dh; if(cur&&+cur<=dim) dS.value=cur;
+  }
+  fillDays(); yS.onchange=fillDays; mS.onchange=fillDays;
 }
 
 // 省市区三级联动
@@ -536,7 +554,9 @@ function initCitySelect(){
 }
 
 function doCalcNatal(){
-  const dateStr=document.getElementById("bDate").value, timeStr=document.getElementById("bTime").value||"12:00";
+  const _y=document.getElementById("bY").value,_m=document.getElementById("bM").value,_d=document.getElementById("bD").value;
+  const dateStr=(_y&&_m&&_d)?`${_y}-${String(_m).padStart(2,'0')}-${String(_d).padStart(2,'0')}`:"";
+  const timeStr=document.getElementById("bTime").value||"12:00";
   if(!dateStr){alert("请先填出生日期");return;}
   const [y,mo,d]=dateStr.split("-").map(Number);
   const [h,mi]=timeStr.split(":").map(Number);
