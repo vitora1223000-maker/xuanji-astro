@@ -1,4 +1,4 @@
-// 玄玑·Astrology —— 极简 Node 服务
+// 玄玑·Astro —— 极简 Node 服务
 // 职责：① 托管现有静态文件（index.html / *.js / *.png 原样不动）
 //        ② 提供 /api/read：藏着 Key 调 MiniMax 官方 API，流式回传解读
 // Key 全程只从环境变量读，绝不写进代码、绝不上 GitHub。
@@ -309,5 +309,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`玄玑·Astrology 服务已启动 :${PORT}`);
+  console.log(`玄玑·Astro 服务已启动 :${PORT}`);
 });

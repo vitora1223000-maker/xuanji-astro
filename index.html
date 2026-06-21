@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>玄玑 · Astrology</title>
+<title>玄玑 · Astro</title>
 <style>
   :root{
     /* 深空神秘风(与PDF报告同源) */
@@ -109,11 +109,27 @@
   .md-body .md-ul li{margin:5px 0;line-height:1.85}
   .md-body .md-q{margin:12px 0;padding:10px 14px;border-left:3px solid var(--gold);background:rgba(169,143,216,.1);border-radius:0 8px 8px 0;color:var(--gold);font-size:15px;line-height:1.8}
   .md-body .md-hr{border:none;border-top:1px solid var(--line);margin:16px 0;opacity:.5}
+  /* 登录浮层（用现站紫色调变量，与全站统一）*/
+  #loginOverlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center}
+  #loginOverlay .lg-mask{position:absolute;inset:0;background:rgba(6,8,20,.72);backdrop-filter:blur(3px)}
+  #loginOverlay .lg-box{position:relative;width:88%;max-width:340px;background:linear-gradient(160deg,#13152e,#0e1024);border:1px solid var(--line);border-radius:18px;padding:26px 22px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  #loginOverlay .lg-close{position:absolute;top:10px;right:14px;background:none;border:0;color:var(--soft);font-size:22px;cursor:pointer;line-height:1}
+  #loginOverlay .lg-title{text-align:center;font-size:20px;font-weight:700;letter-spacing:3px;background:linear-gradient(120deg,#e8c976,#fff6d8,#c9a8ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  #loginOverlay .lg-sub{text-align:center;font-size:12.5px;color:var(--soft);line-height:1.7;margin-bottom:18px}
+  #loginOverlay .lg-input{width:100%;padding:12px 14px;border-radius:11px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:15px;margin-bottom:10px;outline:none}
+  #loginOverlay .lg-input:focus{border-color:var(--accent)}
+  #loginOverlay .lg-btn{width:100%;padding:12px;border:0;border-radius:11px;background:linear-gradient(120deg,#c9a8ff,#e8c976);color:#1a1530;font-size:15px;font-weight:600;letter-spacing:1px;cursor:pointer}
+  #loginOverlay .lg-btn:active{opacity:.85}
+  #loginOverlay .lg-btn:disabled{opacity:.55;cursor:default}
+  #loginOverlay .lg-hint{font-size:12px;margin-top:8px;text-align:center;min-height:16px;color:var(--soft)}
+  #loginOverlay .lg-hint.err{color:var(--warn)} #loginOverlay .lg-hint.wait{color:var(--soft)} #loginOverlay .lg-hint.gold{color:var(--gold)}
+  #loginOverlay .lg-back{text-align:center;font-size:12px;color:var(--soft);margin-top:12px;cursor:pointer}
+  #loginOverlay .hidden{display:none}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>✦ 玄玑 · Astrology ✦</h1>
+  <h1>✦ 玄玑 · Astro ✦</h1>
   <div class="sub" id="now">解构人性 · 主宰人生 · 游戏玩家从不做 NPC</div>
   <div id="view"></div>
   <!-- 对外版: prompt框隐藏(仅后台生成, 不给访客看) -->
@@ -121,14 +137,83 @@
     <div class="prompt-box" id="prompt"></div>
     <button class="btn" id="copy">复制</button>
   </div>
-  <div class="foot">玄玑 · Astrology · 星历与瑞士星历同源 · 你的出生信息只在本机计算，不上传<br>小红书 @山玉居士　·　以占星解构人性，用数学逻辑主宰人生</div>
+  <div class="foot">玄玑 · Astro · 星历与瑞士星历同源 · 你的出生信息只在本机计算，不上传<br>小红书 @山玉居士　·　以占星解构人性，用数学逻辑主宰人生</div>
 </div>
 
 <script src="./astronomy.js"></script>
 <script src="./cities.js"></script>
 <script src="./ephemeris.bundle.js"></script>
 <script src="./chiron-helper.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* ===== Supabase 登录（与正式站同一项目，账号打通）===== */
+const SB_URL = "https://tbiymcyggyofysugjkoi.supabase.co";
+const SB_KEY = "sb_publishable_Qf-OJCyStFsqoltB6Z77VQ_ewz7zoOB";
+const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+
+// 当前登录用户(null=未登录)
+let _curUser = null;
+async function refreshUser(){
+  if(!sb) return null;
+  try{ const {data}=await sb.auth.getUser(); _curUser = (data&&data.user)?data.user:null; }catch(_){ _curUser=null; }
+  return _curUser;
+}
+
+// 弹出登录浮层；返回 Promise，登录成功 resolve(user)，关闭则 resolve(null)
+function openLogin(){
+  return new Promise(resolve=>{
+    let curEmail="";
+    const ov=document.createElement("div");
+    ov.id="loginOverlay";
+    ov.innerHTML=`
+      <div class="lg-mask"></div>
+      <div class="lg-box">
+        <button class="lg-close" title="关闭">×</button>
+        <div class="lg-title">✦ 留一缕灵韵</div>
+        <div class="lg-sub">留个邮箱，神仙虾方为你解读，也好记住你这张盘</div>
+        <div class="lg-step" data-step="1">
+          <input class="lg-input" id="lgEmail" type="email" placeholder="你的邮箱" autocomplete="email">
+          <button class="lg-btn" id="lgSend">寄出灵符</button>
+          <div class="lg-hint" id="lgHint1"></div>
+        </div>
+        <div class="lg-step hidden" data-step="2">
+          <input class="lg-input" id="lgCode" type="text" inputmode="numeric" placeholder="输入收到的灵符（验证码）" maxlength="8">
+          <button class="lg-btn" id="lgVerify">验符入阁</button>
+          <div class="lg-hint" id="lgHint2"></div>
+          <div class="lg-back" id="lgBack">← 换个邮箱</div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const $=id=>ov.querySelector(id);
+    const setH=(el,msg,cls)=>{ el.className="lg-hint "+(cls||""); el.textContent=msg; };
+    const goStep=n=>{ ov.querySelectorAll(".lg-step").forEach(s=>s.classList.add("hidden")); ov.querySelector('.lg-step[data-step="'+n+'"]').classList.remove("hidden"); };
+    const close=(u)=>{ ov.remove(); resolve(u||null); };
+    $(".lg-close").onclick=()=>close(null);
+    $(".lg-mask").onclick=()=>close(null);
+    $("#lgSend").onclick=async()=>{
+      const email=$("#lgEmail").value.trim();
+      if(!/^[^@]+@[^@]+\.[^@]+$/.test(email)){ setH($("#lgHint1"),"邮箱看着不太对呢","err"); return; }
+      if(!sb){ setH($("#lgHint1"),"登录服务未就绪，请刷新重试","err"); return; }
+      $("#lgSend").disabled=true; setH($("#lgHint1"),"灵符飞往你的邮箱中…","wait");
+      const {error}=await sb.auth.signInWithOtp({ email, options:{ shouldCreateUser:true, emailRedirectTo:undefined } });
+      $("#lgSend").disabled=false;
+      if(error){ setH($("#lgHint1"),"寄送失败："+error.message,"err"); return; }
+      curEmail=email; goStep(2); setH($("#lgHint2"),"灵符已寄至 "+email+"（查收件箱/垃圾箱）","wait"); $("#lgCode").focus();
+    };
+    $("#lgVerify").onclick=async()=>{
+      const token=$("#lgCode").value.trim();
+      if(token.length<6){ setH($("#lgHint2"),"请输入完整灵符","err"); return; }
+      $("#lgVerify").disabled=true; setH($("#lgHint2"),"验符中…","wait");
+      const {data,error}=await sb.auth.verifyOtp({ email:curEmail, token, type:"email" });
+      $("#lgVerify").disabled=false;
+      if(error){ setH($("#lgHint2"),"灵符不符或已过期，再试试","err"); return; }
+      _curUser=data.user; close(data.user);
+    };
+    $("#lgBack").onclick=()=>goStep(1);
+    setTimeout(()=>$("#lgEmail").focus(),50);
+  });
+}
+
 const A=window.Astronomy;
 const SIGNS=["白羊","金牛","双子","巨蟹","狮子","处女","天秤","天蝎","射手","摩羯","水瓶","双鱼"];
 const ELEMENT={白羊:"火",狮子:"火",射手:"火",金牛:"土",处女:"土",摩羯:"土",双子:"风",天秤:"风",水瓶:"风",巨蟹:"水",天蝎:"水",双鱼:"水"};
@@ -516,28 +601,19 @@ function renderNatalResult(N){
      <button class="btn read-btn" id="aiRead">✨ 让伟大的占星师为我解读</button>
      <div class="read-by">— 解读者 · 玄玑天庭 文澜阁 · 神仙虾 —</div>
      <div id="aiReadOut" class="read-out" style="display:none"></div>
-   </div>
-   <div class="ask-card">
-     <div class="ask-title">✦ 想要更深的精解吗？</div>
-     <div class="ask-desc">上面是文澜阁神仙虾为你读的核心。若想把事业、正缘、财富这三条线<b>逐年看透</b>，或亲自问一问你这一生的修行课题——</div>
-     <div class="ask-qr">
-       <img src="qr-only.png" alt="玄玑老师 · 小红书二维码" class="qr-img">
-       <div class="qr-text">扫码在小红书<br>找「山玉居士」<br><span class="qr-sub">以占星解构人性<br>用数学逻辑主宰人生</span></div>
-     </div>
-     <div class="ask-or">— 或 —</div>
-     <button class="btn" id="copyShare">📋 复制我的星盘 · 私信发给玄玑老师</button>
+     <button class="btn" id="copyShare" style="margin-top:10px;background:var(--card);color:var(--soft);border:1px solid var(--line);box-shadow:none;font-weight:500">📋 复制星盘数据</button>
    </div>`;
   document.getElementById("natalResult").innerHTML=html;
   // 绑定"让玄玑当场深度解读"——流式调后端 /api/read
   const ar=document.getElementById("aiRead");
   if(ar) ar.onclick=()=>runAIRead(N,ar);
-  // 绑定"复制求解读"
+  // 绑定"复制星盘数据"——纯工具功能，方便用户拿走自己的盘数据
   const cs=document.getElementById("copyShare");
   if(cs) cs.onclick=()=>{
     const txt=buildUserShare(N);
     navigator.clipboard.writeText(txt).then(()=>{
-      cs.textContent="✓ 已复制！去私信粘给玄玑老师 🙏";
-      setTimeout(()=>cs.textContent="📋 复制我的星盘 · 发给玄玑老师解读",2400);
+      cs.textContent="✓ 已复制到剪贴板";
+      setTimeout(()=>cs.textContent="📋 复制星盘数据",2000);
     }).catch(()=>{ alert("复制失败，请长按选中下面文字手动复制：\n\n"+txt); });
   };
 }
@@ -546,6 +622,12 @@ function renderNatalResult(N){
 async function runAIRead(N,btn){
   const out=document.getElementById("aiReadOut");
   if(!out) return;
+  // B端：登录才解读（排盘免费看，解读要留邮箱=攒注册，账号与正式站打通）
+  await refreshUser();
+  if(!_curUser){
+    const u = await openLogin();
+    if(!u) return;            // 用户关闭登录浮层=不解读
+  }
   // 只传"星盘数据+身位特征",由后端拼神仙虾prompt(人设/红线/金句锁后端,用户改不了)
   const natalData=buildNatalData(N);
   // 亲密度:localStorage记访问 + 盘指纹(后端记照见次数)
@@ -598,13 +680,13 @@ async function runAIRead(N,btn){
     out.innerHTML='<span style="color:var(--gold);font-size:15px;line-height:1.9">🔮 照命镜显影中……命书已成。</span><span class="typing"></span>';
     await new Promise(r=>setTimeout(r,900));
     out.innerHTML='<div class="md-body md-fadein">'+mdToHtml(full)+'</div>'+
-      '<div class="read-hook">✦ 以上是文澜阁 · 神仙虾为你读的核心。这一生的事业、正缘、财富三条线如何<b>逐年流转</b>、何时是你的修行关口——若想逐年看透，可往下扫码，请神仙虾为你出一份完整流年报告。</div>';
+      '<div class="read-hook">✦ 以上是文澜阁 · 神仙虾为你读的核心。这一生的事业、正缘、财富三条线如何<b>逐年流转</b>、何时是你的修行关口——尚有更深一层，留待来日。</div>';
     out.scrollIntoView({behavior:"smooth",block:"start"});
     btn.textContent="✓ 解读完成 · 可重新生成";
     btn.disabled=false;
   }catch(e){
     clearInterval(waitTimer); // 停等待轮播
-    out.innerHTML='<span style="color:var(--soft)">神仙虾暂时连不上 😣 请稍后再点一次，或往下扫码请玄玑老师亲自为你精解。</span>';
+    out.innerHTML='<span style="color:var(--soft)">神仙虾暂时连不上 😣 请稍后再点一次。</span>';
     btn.textContent="✨ 重试一次";
     btn.disabled=false;
   }
@@ -638,14 +720,14 @@ function mdToHtml(src){
 function buildUserShare(N){
   const a=N.angles,P=N.planets,m=N.meta;
   const planetStr=P.map(p=>`${p.n}${p.sign}${p.deg}°第${p.house}宫${p.rx?'(逆)':''}`).join("、");
-  return `🔮 我的星盘（来自玄玑·Astrology）\n`
+  return `🔮 我的星盘（来自玄玑·Astro）\n`
     +`性别：${m.sex}\n`
     +`☀太阳${P[0].sign}${P[0].deg}°　🌙月亮${P[1].sign}${P[1].deg}°　⬆️上升${a.asc.sign}${a.asc.deg}°\n`
     +`【行星】${planetStr}\n`
     +`【四轴】上升${a.asc.sign}${a.asc.deg}°/天顶${a.mc.sign}${a.mc.deg}°/下降${a.dsc.sign}${a.dsc.deg}°/天底${a.ic.sign}${a.ic.deg}°\n`
     +`【进阶】${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join("、")}\n`
     +`【相位】${N.asp.map(x=>x.t).join("、")}\n`
-    +`——想请玄玑老师帮我深度解读一下 🙏`;
+    +`——玄玑 · Astro 排盘`;
 }
 
 // 盘指纹:出生数据→稳定哈希ID(唯一锚点,不含隐私明文; 同盘任何设备任何时候都得同一个ID)
