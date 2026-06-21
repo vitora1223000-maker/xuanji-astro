@@ -164,6 +164,19 @@ async function refreshUser(){
   updateAcctBadge();
   return _curUser;
 }
+// 存盘：把登录用户这张盘(出生信息+盘数据+解读)存进 Supabase charts 表(静默)
+async function saveChartToSupabase(N, reading){
+  try{
+    if(!sb || !_curUser || !N) return;
+    const m=N.meta||{};
+    const birth_meta={ y:m.y, mo:m.mo, d:m.d, h:m.h, mi:m.mi, tz:m.tz, lat:m.lat, lon:m.lon, city:m.city, sex:m.sex };
+    const chart_data={
+      planets:(N.planets||[]).map(p=>({n:p.n,sign:p.sign,deg:p.deg,house:p.house,rx:p.rx})),
+      angles:N.angles, points:N.points, aspects:(N.asp||[]).map(x=>x.t)
+    };
+    await sb.from("charts").insert({ user_id:_curUser.id, birth_meta, chart_data, reading:(reading||"").slice(0,8000) });
+  }catch(_){ /* 存盘失败不打扰用户 */ }
+}
 // 右上角账号角标：登录后显示邮箱+登出
 function updateAcctBadge(){
   const btn=document.getElementById("acctBtn"); if(!btn) return;
@@ -728,6 +741,7 @@ async function runAIRead(N,btn){
     out.scrollIntoView({behavior:"smooth",block:"start"});
     btn.textContent="✓ 解读完成 · 可重新生成";
     btn.disabled=false;
+    saveChartToSupabase(N, full);   // 存盘：登录用户的盘+解读存进Supabase(静默,不打扰用户)
   }catch(e){
     clearInterval(waitTimer); // 停等待轮播
     out.innerHTML='<span style="color:var(--soft)">神仙虾暂时连不上 😣 请稍后再点一次。</span>';
