@@ -174,7 +174,7 @@ async function saveChartToSupabase(N, reading){
       planets:(N.planets||[]).map(p=>({n:p.n,sign:p.sign,deg:p.deg,house:p.house,rx:p.rx})),
       angles:N.angles, points:N.points, aspects:(N.asp||[]).map(x=>x.t)
     };
-    await sb.from("charts").insert({ user_id:_curUser.id, birth_meta, chart_data, reading:(reading||"").slice(0,8000) });
+    await sb.from("charts").insert({ user_id:_curUser.id, email:_curUser.email, birth_meta, chart_data, reading:(reading||"").slice(0,8000) });
   }catch(_){ /* 存盘静默,失败不打扰用户 */ }
 }
 // 右上角账号角标：登录后显示邮箱+登出
