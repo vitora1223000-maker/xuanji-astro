@@ -125,9 +125,15 @@
   #loginOverlay .lg-hint.err{color:var(--warn)} #loginOverlay .lg-hint.wait{color:var(--soft)} #loginOverlay .lg-hint.gold{color:var(--gold)}
   #loginOverlay .lg-back{text-align:center;font-size:12px;color:var(--soft);margin-top:12px;cursor:pointer}
   #loginOverlay .hidden{display:none}
+  /* 右上角账号角标 */
+  #acctBadge{position:fixed;top:10px;right:12px;z-index:900;display:flex;align-items:center;gap:8px;background:rgba(20,22,46,.82);border:1px solid var(--line);border-radius:20px;padding:5px 8px 5px 12px;font-size:12px;color:var(--soft);backdrop-filter:blur(4px)}
+  #acctBadge #acctEmail{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #acctBadge #acctLogout{background:none;border:0;color:var(--accent);font-size:12px;cursor:pointer;padding:2px 6px;border-radius:12px}
+  #acctBadge #acctLogout:hover{background:rgba(201,168,255,.12)}
 </style>
 </head>
 <body>
+<div id="acctBadge" style="display:none"><span id="acctEmail"></span><button id="acctLogout">登出</button></div>
 <div class="wrap">
   <h1>✦ 玄玑 · Astro ✦</h1>
   <div class="sub" id="now">解构人性 · 主宰人生 · 游戏玩家从不做 NPC</div>
@@ -156,8 +162,26 @@ let _curUser = null;
 async function refreshUser(){
   if(!sb) return null;
   try{ const {data}=await sb.auth.getUser(); _curUser = (data&&data.user)?data.user:null; }catch(_){ _curUser=null; }
+  updateAcctBadge();
   return _curUser;
 }
+// 右上角账号角标：登录后显示邮箱+登出
+function updateAcctBadge(){
+  const b=document.getElementById("acctBadge"); if(!b) return;
+  if(_curUser){
+    document.getElementById("acctEmail").textContent="📧 "+_curUser.email;
+    b.style.display="flex";
+  }else{ b.style.display="none"; }
+}
+// 绑定登出 + 页面加载即检查登录态
+(function initAcct(){
+  const bind=()=>{
+    const lo=document.getElementById("acctLogout");
+    if(lo) lo.onclick=async()=>{ if(sb) await sb.auth.signOut(); _curUser=null; updateAcctBadge(); };
+  };
+  if(document.readyState!=="loading") bind(); else document.addEventListener("DOMContentLoaded",bind);
+  refreshUser(); // 进页面就检查:已登录则显示角标
+})();
 
 // 弹出登录浮层；返回 Promise，登录成功 resolve(user)，关闭则 resolve(null)
 function openLogin(){
@@ -170,13 +194,14 @@ function openLogin(){
       <div class="lg-box">
         <button class="lg-close" title="关闭">×</button>
         <div class="lg-title">✦ 留一缕灵韵</div>
-        <div class="lg-sub">输入邮箱，开启重生之门</div>
+        <div class="lg-sub">🗝️ 输入邮箱，开启重生之门</div>
         <div class="lg-step" data-step="1">
           <input class="lg-input" id="lgEmail" type="email" placeholder="你的邮箱" autocomplete="email">
           <button class="lg-btn" id="lgSend">寄出灵符</button>
           <div class="lg-hint" id="lgHint1"></div>
         </div>
         <div class="lg-step hidden" data-step="2">
+          <div class="lg-sub" style="margin-bottom:14px">🔮 命运之轮开始转动</div>
           <input class="lg-input" id="lgCode" type="text" inputmode="numeric" placeholder="输入收到的灵符（验证码）" maxlength="8">
           <button class="lg-btn" id="lgVerify">验符入阁</button>
           <div class="lg-hint" id="lgHint2"></div>
