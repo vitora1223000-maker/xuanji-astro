@@ -93,6 +93,22 @@
   .read-out .typing{display:inline-block;width:7px;height:15px;background:var(--gold);margin-left:2px;animation:blink 1s steps(2) infinite;vertical-align:text-bottom}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
   .read-hook{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);font-size:13px;color:var(--gold);line-height:1.8}
+  /* —— 向下引导箭头(柔金呼吸·引导完即收) —— */
+  .scroll-guide{display:flex;flex-direction:column;align-items:center;gap:6px;margin:18px 0 2px;cursor:pointer;user-select:none;
+    animation:floatArrow 2.6s ease-in-out infinite;transition:opacity .6s ease,transform .6s ease}
+  .scroll-guide.fade-out{opacity:0;transform:translateY(6px);pointer-events:none}
+  .scroll-guide .sg-word{font-size:12.5px;color:var(--gold);letter-spacing:2px;animation:guideWordGlow 2.8s ease-in-out infinite}
+  .scroll-guide .sg-arrow{width:15px;height:15px;border-right:1.5px solid var(--gold);border-bottom:1.5px solid var(--gold);
+    transform:rotate(45deg);animation:guideArrowGlow 2.8s ease-in-out infinite}
+  @keyframes floatArrow{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+  @keyframes guideWordGlow{0%,100%{opacity:.7;text-shadow:0 0 8px rgba(232,201,118,.2)}50%{opacity:1;text-shadow:0 0 16px rgba(230,200,120,.7),0 0 28px rgba(230,200,120,.35)}}
+  @keyframes guideArrowGlow{0%,100%{opacity:.75;filter:drop-shadow(0 0 5px rgba(230,200,120,.4))}50%{opacity:1;filter:drop-shadow(0 0 12px rgba(230,200,120,.85))}}
+  /* —— 解读按钮灵气光晕(烛火呼吸·点击即收) —— */
+  .read-btn.glow{animation:glowPulse 2.8s ease-in-out infinite}
+  @keyframes glowPulse{
+    0%,100%{box-shadow:0 6px 20px rgba(201,168,255,.25),0 0 0 0 rgba(230,200,120,0)}
+    50%{box-shadow:0 6px 22px rgba(201,168,255,.3),0 0 22px 4px rgba(230,200,120,.45)}
+  }
   /* Markdown 渲染样式(神仙虾解读) */
   .md-body{white-space:normal}
   .md-fadein{animation:mdFade 1.1s ease}
@@ -124,6 +140,8 @@
   #loginOverlay .lg-hint{font-size:12px;margin-top:8px;text-align:center;min-height:16px;color:var(--soft)}
   #loginOverlay .lg-hint.err{color:var(--warn)} #loginOverlay .lg-hint.wait{color:var(--soft)} #loginOverlay .lg-hint.gold{color:var(--gold)}
   #loginOverlay .lg-back{text-align:center;font-size:12px;color:var(--soft);margin-top:12px;cursor:pointer}
+  #loginOverlay .lg-resend{text-align:center;font-size:12.5px;color:#e8c25a;margin-top:12px;cursor:pointer;letter-spacing:.5px;transition:opacity .25s}
+  #loginOverlay .lg-resend.disabled{color:var(--soft);opacity:.6;cursor:default}
   #loginOverlay .hidden{display:none}
   /* 右上角账号角标 */
   #acctBadge{position:fixed;top:calc(env(safe-area-inset-top, 0px) + 8px);right:12px;z-index:900;display:flex;align-items:center;background:rgba(20,22,46,.92);border:1px solid var(--line);border-radius:20px;padding:4px;font-size:12px;color:var(--soft);backdrop-filter:blur(4px);box-shadow:0 2px 12px rgba(0,0,0,.4)}
@@ -156,6 +174,12 @@ const SB_URL = "https://tbiymcyggyofysugjkoi.supabase.co";
 const SB_KEY = "sb_publishable_Qf-OJCyStFsqoltB6Z77VQ_ewz7zoOB";
 const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
+/* ===== 登录开关 =====
+ * false=免登录直接用（当前默认，验证码未稳前不丢用户）；true=解读需登录(攒注册)。
+ * 默认免登录；临时想要求登录测试，URL 加 ?login=1（不必重新部署）。
+ * 等手机号登录上线、验证码稳定后，再评估是否默认改回 true 攒注册。 */
+const REQUIRE_LOGIN = (new URLSearchParams(location.search).get("login") === "1");
+
 // 当前登录用户(null=未登录)
 let _curUser = null;
 async function refreshUser(){
@@ -177,9 +201,12 @@ async function saveChartToSupabase(N, reading){
     await sb.from("charts").insert({ user_id:_curUser.id, email:_curUser.email, birth_meta, chart_data, reading:(reading||"").slice(0,8000) });
   }catch(_){ /* 存盘静默,失败不打扰用户 */ }
 }
-// 右上角账号角标：登录后显示邮箱+登出
+// 右上角账号角标：登录后显示登出；免登录模式(REQUIRE_LOGIN=false)且未登录时整个隐藏，用户碰不到会发链接的登录入口
 function updateAcctBadge(){
+  const badge=document.getElementById("acctBadge");
   const btn=document.getElementById("acctBtn"); if(!btn) return;
+  // 免登录且未登录 → 藏掉角标（手机号登录上线/开关打开后自动恢复）
+  if(badge) badge.style.display = (!REQUIRE_LOGIN && !_curUser) ? "none" : "flex";
   btn.textContent = _curUser ? "登出" : "登入";
 }
 // 绑定登出 + 页面加载即检查登录态
@@ -217,6 +244,7 @@ function openLogin(){
           <input class="lg-input" id="lgCode" type="text" inputmode="numeric" placeholder="输入收到的灵符（验证码）" maxlength="8">
           <button class="lg-btn" id="lgVerify">验符入阁</button>
           <div class="lg-hint" id="lgHint2"></div>
+          <div class="lg-resend" id="lgResend">重新寄出灵符</div>
           <div class="lg-back" id="lgBack">← 换个邮箱</div>
         </div>
       </div>`;
@@ -224,19 +252,40 @@ function openLogin(){
     const $=id=>ov.querySelector(id);
     const setH=(el,msg,cls)=>{ el.className="lg-hint "+(cls||""); el.textContent=msg; };
     const goStep=n=>{ ov.querySelectorAll(".lg-step").forEach(s=>s.classList.add("hidden")); ov.querySelector('.lg-step[data-step="'+n+'"]').classList.remove("hidden"); };
-    const close=(u)=>{ ov.remove(); resolve(u||null); };
+    let cdTimer=null;  // 60秒重发倒计时句柄
+    const close=(u)=>{ clearInterval(cdTimer); ov.remove(); resolve(u||null); };
     $(".lg-close").onclick=()=>close(null);
     $(".lg-mask").onclick=()=>close(null);
-    $("#lgSend").onclick=async()=>{
-      const email=$("#lgEmail").value.trim();
-      if(!/^[^@]+@[^@]+\.[^@]+$/.test(email)){ setH($("#lgHint1"),"邮箱看着不太对呢","err"); return; }
-      if(!sb){ setH($("#lgHint1"),"登录服务未就绪，请刷新重试","err"); return; }
-      $("#lgSend").disabled=true; setH($("#lgHint1"),"灵符飞往你的邮箱中…","wait");
-      const {error}=await sb.auth.signInWithOtp({ email, options:{ shouldCreateUser:true, emailRedirectTo:undefined } });
-      $("#lgSend").disabled=false;
-      if(error){ setH($("#lgHint1"),"寄送失败："+error.message,"err"); return; }
-      curEmail=email; goStep(2); setH($("#lgHint2"),"灵符已寄至 "+email+"（查收件箱/垃圾箱）","wait"); $("#lgCode").focus();
+    // —— 60秒重发倒计时（防狂点撞 Supabase 限流被默默丢，反而更收不到）——
+    const startCountdown=()=>{
+      const b=$("#lgResend"); if(!b) return;
+      clearInterval(cdTimer); let left=60;
+      b.classList.add("disabled"); b.textContent=left+"秒后可重发";
+      cdTimer=setInterval(()=>{
+        left--;
+        if(left<=0){ clearInterval(cdTimer); cdTimer=null; b.classList.remove("disabled"); b.textContent="重新寄出灵符"; }
+        else b.textContent=left+"秒后可重发";
+      },1000);
     };
+    // —— 发码逻辑（首发/重发共用）——
+    const doSend=async(firstTime)=>{
+      const email=$("#lgEmail").value.trim();
+      const hintEl=firstTime?$("#lgHint1"):$("#lgHint2");
+      if(!/^[^@]+@[^@]+\.[^@]+$/.test(email)){ setH($("#lgHint1"),"邮箱看着不太对呢","err"); return false; }
+      if(!sb){ setH(hintEl,"灵阁一时未醒，请刷新再试","err"); return false; }
+      if(firstTime){ $("#lgSend").disabled=true; setH($("#lgHint1"),"灵符飞往你的邮箱中…","wait"); }
+      else setH($("#lgHint2"),"灵符再次寄往你的邮箱中…","wait");
+      const {error}=await sb.auth.signInWithOtp({ email, options:{ shouldCreateUser:true, emailRedirectTo:undefined } });
+      if(firstTime) $("#lgSend").disabled=false;
+      if(error){ setH(hintEl,"灵符一时未送达，稍候再试","err"); return false; }  // 🔴不露英文报错
+      curEmail=email;
+      if(firstTime){ goStep(2); $("#lgCode").focus(); }
+      setH($("#lgHint2"),"灵符已寄至 "+email+"（记得翻翻垃圾箱）","wait");
+      startCountdown();
+      return true;
+    };
+    $("#lgSend").onclick=()=>doSend(true);
+    $("#lgResend").onclick=()=>{ if(!$("#lgResend").classList.contains("disabled")) doSend(false); };
     $("#lgVerify").onclick=async()=>{
       const token=$("#lgCode").value.trim();
       if(token.length<6){ setH($("#lgHint2"),"请输入完整灵符","err"); return; }
@@ -244,9 +293,9 @@ function openLogin(){
       const {data,error}=await sb.auth.verifyOtp({ email:curEmail, token, type:"email" });
       $("#lgVerify").disabled=false;
       if(error){ setH($("#lgHint2"),"灵符不符或已过期，再试试","err"); return; }
-      _curUser=data.user; close(data.user);
+      clearInterval(cdTimer); _curUser=data.user; close(data.user);
     };
-    $("#lgBack").onclick=()=>goStep(1);
+    $("#lgBack").onclick=()=>{ clearInterval(cdTimer); $("#lgResend").classList.remove("disabled"); $("#lgResend").textContent="重新寄出灵符"; goStep(1); };
     setTimeout(()=>$("#lgEmail").focus(),50);
   });
 }
@@ -632,6 +681,10 @@ function renderNatalResult(N){
      <div class="b3"><div class="lbl">🌙 月亮</div><div class="val">${moon.sign} ${moon.deg}°</div></div>
      <div class="b3"><div class="lbl">⬆️ 上升</div><div class="val">${a.asc.sign} ${a.asc.deg}°</div></div>
    </div>
+   <div class="scroll-guide" id="scrollGuide" title="往下，听从玄玑的指引">
+     <span class="sg-word">往下，听从玄玑的指引</span>
+     <span class="sg-arrow"></span>
+   </div>
    <!-- 角色卡暂撤(Athena准备世界观中), 以后加回 -->
    <h2 style="margin-top:14px">✦ 行星落座 · 落宫</h2>
    ${P.map(p=>`<div class="planet"><span class="pname">${p.n}</span><span class="ppos">${p.sign} ${p.deg}°${String(p.min).padStart(2,'0')}' · 第${p.house}宫</span>${p.rx?'<span class="rx">℞ 逆</span>':''}</div>`).join('')}
@@ -655,7 +708,7 @@ function renderNatalResult(N){
    <div class="read-card">
      <div class="ask-title">✦ 你自己的操作说明书 ✦</div>
      <div class="ask-desc">这张盘，就是您出厂自带的说明书——您是谁、您的天赋怎么用、感情与正缘、这一生的功课。<br>星盘只是骨架，请<b>玄玑天庭 · 文澜阁 · 神仙虾</b>当场为您逐一解读：</div>
-     <button class="btn read-btn" id="aiRead">✨ 让伟大的占星师为我解读</button>
+     <button class="btn read-btn glow" id="aiRead">✨ 让伟大的占星师为我解读</button>
      <div class="read-by">— 解读者 · 玄玑天庭 文澜阁 · 神仙虾 —</div>
      <div id="aiReadOut" class="read-out" style="display:none"></div>
      <button class="btn" id="copyShare" style="margin-top:10px;background:var(--card);color:var(--soft);border:1px solid var(--line);box-shadow:none;font-weight:500">📋 复制星盘数据</button>
@@ -663,7 +716,12 @@ function renderNatalResult(N){
   document.getElementById("natalResult").innerHTML=html;
   // 绑定"让玄玑当场深度解读"——流式调后端 /api/read
   const ar=document.getElementById("aiRead");
-  if(ar) ar.onclick=()=>runAIRead(N,ar);
+  if(ar){
+    const _orig=()=>runAIRead(N,ar);
+    ar.onclick=()=>{ ar.classList.remove("glow"); _orig(); }; // 点了就收光晕，已引导到位
+  }
+  // 引导动效:向下箭头(柔金呼吸) + 进入解读卡视口即淡出收起
+  setupScrollGuide();
   // 绑定"复制星盘数据"——纯工具功能，方便用户拿走自己的盘数据
   const cs=document.getElementById("copyShare");
   if(cs) cs.onclick=()=>{
@@ -675,15 +733,42 @@ function renderNatalResult(N){
   };
 }
 
+// 向下引导箭头:柔金呼吸浮动,点击平滑滚到解读卡;解读卡进入视口即淡出收起,本次排盘内不再回来
+function setupScrollGuide(){
+  const guide=document.getElementById("scrollGuide");
+  const card=document.querySelector("#natalResult .read-card");
+  if(!guide||!card) return;
+  // 点箭头平滑滚到解读卡
+  guide.addEventListener("click",()=>card.scrollIntoView({behavior:"smooth",block:"center"}));
+  const dismiss=()=>{
+    if(guide.classList.contains("fade-out")) return;
+    guide.classList.add("fade-out");
+    setTimeout(()=>{ if(guide.parentNode) guide.parentNode.removeChild(guide); },650);
+  };
+  // 箭头自己滚出视野(用户已往下看解读)才收起，避免与解读卡同屏时秒淡出
+  if("IntersectionObserver" in window){
+    let seen=false; // 先确认箭头进入过视野，再在它离开时才淡出
+    const io=new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting){ seen=true; }
+        else if(seen){ dismiss(); io.disconnect(); }
+      });
+    },{threshold:.6});
+    io.observe(guide);
+  }
+}
+
 // AI 解读：非流式调 /api/read 拿完整解读，前端用打字机效果逐字呈现（保留沉浸感）
 async function runAIRead(N,btn){
   const out=document.getElementById("aiReadOut");
   if(!out) return;
-  // B端：登录才解读（排盘免费看，解读要留邮箱=攒注册，账号与正式站打通）
-  await refreshUser();
-  if(!_curUser){
-    const u = await openLogin();
-    if(!u) return;            // 用户关闭登录浮层=不解读
+  // B端：登录开关控制（REQUIRE_LOGIN=true 才要登录；默认 false=免登录直接解读，验证码未稳前不丢用户）
+  if(REQUIRE_LOGIN){
+    await refreshUser();
+    if(!_curUser){
+      const u = await openLogin();
+      if(!u) return;          // 用户关闭登录浮层=不解读
+    }
   }
   // 只传"星盘数据+身位特征",由后端拼神仙虾prompt(人设/红线/金句锁后端,用户改不了)
   const natalData=buildNatalData(N);

@@ -13,6 +13,7 @@ const http = require("http");
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
@@ -236,6 +237,271 @@ function callMiniMaxStream(prompt, res, raw) {
   upstream.end();
 }
 
+// ====================================================================
+// ========== 手机号验证码登录（阿里云短信 + Supabase Admin）==========
+// ====================================================================
+// 零第三方依赖：阿里云 RPC V1 签名(HMAC-SHA1)与 Supabase REST 全部用 Node 内置 crypto/https 手写。
+// 所有 Key 只从 process.env 读，绝不硬编码、绝不进 git、绝不回传前端。
+//
+// 设计取舍（已查 2026 官方文档确认）：
+//  · 阿里云签名用「V1（HMAC-SHA1，SignatureVersion=1.0）」而非 V3。
+//    原因：SendSms 完全支持 V1，V1 步骤更简单、零依赖手写更稳，且已用阿里云官方测试向量
+//    (DescribeDedicatedHosts，期望签名 9NaGiOspFP5UPcwX8Iwt2YJXXuk=) 字节级核对通过。
+//  · Supabase 签发 session：我们自己用阿里云发码、自己存内存、自己校验（不走 Supabase 自带 SMS）。
+//    校验通过后用 service_role 走 Admin REST 建/登用户，再用
+//    generate_link(magiclink) 拿 hashed_token → /auth/v1/verify(token_hash) 换出真实
+//    access_token + refresh_token 回前端，前端 supabase-js 用 setSession() 即认主。
+//    原因：generate_link+verify 是官方社区确认、当前(2026)可行、最简、不暴露 service_role 的方案；
+//    它需要 email，故给手机用户配一个确定性合成邮箱(phone@PHONE_EMAIL_DOMAIN)，与 phone 一并落库。
+
+// —— 配置（全部 process.env，给出默认值的不含任何密钥）——
+const SUPABASE_URL = (process.env.SUPABASE_URL || "https://tbiymcyggyofysugjkoi.supabase.co").replace(/\/$/, "");
+const ALIYUN_SMS_SIGN_NAME = process.env.ALIYUN_SMS_SIGN_NAME || "强势播传文化";
+const ALIYUN_SMS_TEMPLATE_CODE = process.env.ALIYUN_SMS_TEMPLATE_CODE || "SMS_508470089";
+// 手机用户的合成邮箱域名（仅内部使用，不外露；可用 env 覆盖）
+const PHONE_EMAIL_DOMAIN = process.env.PHONE_EMAIL_DOMAIN || "phone.xuanji.local";
+
+// —— 内存验证码存储 & 频率限制（重启即清空，够用；未来可迁 Supabase）——
+const otpStore = new Map();   // phone -> { code, expireAt, tries }
+const rateStore = new Map();  // phone -> { lastSentAt, dayCount, dayStamp }
+const OTP_TTL_MS = 5 * 60 * 1000;     // 验证码 5 分钟有效
+const RESEND_COOLDOWN_MS = 60 * 1000; // 同号 60 秒只能发一次
+const DAILY_LIMIT = 5;                // 同号每天最多 5 条
+const MAX_VERIFY_TRIES = 5;           // 同一码最多试 5 次
+
+// —— 阿里云 RPC V1 专用 URL 编码（RFC3986：空格→%20，*→%2A，~ 保留）——
+function aliyunEncode(str) {
+  return encodeURIComponent(str)
+    .replace(/\+/g, "%20")
+    .replace(/\*/g, "%2A")
+    .replace(/%7E/g, "~");
+}
+
+// —— RPC V1 签名：返回 {canonical, signature}；key = secret + "&" ——
+function aliyunRpcSign(params, accessKeySecret, httpMethod) {
+  const canonical = Object.keys(params)
+    .sort()
+    .map((k) => aliyunEncode(k) + "=" + aliyunEncode(String(params[k])))
+    .join("&");
+  const stringToSign = httpMethod + "&" + aliyunEncode("/") + "&" + aliyunEncode(canonical);
+  const signature = crypto
+    .createHmac("sha1", accessKeySecret + "&")
+    .update(stringToSign, "utf8")
+    .digest("base64");
+  return { canonical, signature };
+}
+
+// —— 调阿里云发短信。成功 resolve()，失败 reject(Error(友好中文))，
+//    内部错误细节只 console.log，绝不外抛给前端。 ——
+function sendAliyunSms(phone, code) {
+  return new Promise((resolve, reject) => {
+    const akId = process.env.ALIYUN_SMS_AK_ID;
+    const akSecret = process.env.ALIYUN_SMS_AK_SECRET;
+    if (!akId || !akSecret) {
+      const e = new Error("服务端未配置短信服务，请联系管理员");
+      e.config = true;
+      return reject(e);
+    }
+    const params = {
+      AccessKeyId: akId,
+      Action: "SendSms",
+      Format: "JSON",
+      PhoneNumbers: phone,
+      RegionId: "cn-hangzhou",
+      SignName: ALIYUN_SMS_SIGN_NAME,
+      SignatureMethod: "HMAC-SHA1",
+      SignatureNonce: crypto.randomUUID(),
+      SignatureVersion: "1.0",
+      TemplateCode: ALIYUN_SMS_TEMPLATE_CODE,
+      TemplateParam: JSON.stringify({ code: String(code) }),
+      Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      Version: "2017-05-25",
+    };
+    const { signature } = aliyunRpcSign(params, akSecret, "GET");
+    const query =
+      Object.keys(params).sort().map((k) => aliyunEncode(k) + "=" + aliyunEncode(String(params[k]))).join("&") +
+      "&Signature=" + aliyunEncode(signature);
+
+    const r = https.request(
+      { hostname: "dysmsapi.aliyuncs.com", path: "/?" + query, method: "GET", timeout: 15000 },
+      (up) => {
+        let b = ""; up.setEncoding("utf8");
+        up.on("data", (c) => (b += c));
+        up.on("end", () => {
+          let j = {};
+          try { j = JSON.parse(b); } catch (_) {}
+          if (up.statusCode === 200 && j.Code === "OK") return resolve();
+          // 失败：内部留痕，对前端只给脱敏友好提示（绝不带 AccessKey）
+          console.log(`[sms] 阿里云发送失败 status=${up.statusCode} Code=${j.Code} Msg=${j.Message}`);
+          reject(new Error("验证码发送失败，请稍后再试"));
+        });
+      }
+    );
+    r.on("timeout", () => { r.destroy(); reject(new Error("验证码发送超时，请稍后再试")); });
+    r.on("error", (e) => { console.log(`[sms] 阿里云请求异常 ${e.message}`); reject(new Error("验证码发送失败，请稍后再试")); });
+    r.end();
+  });
+}
+
+// —— Supabase REST 小工具：POST/GET JSON，带 apikey + service_role Bearer ——
+function supabaseRequest(method, p, serviceKey, body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(SUPABASE_URL + p);
+    const payload = body ? JSON.stringify(body) : null;
+    const headers = {
+      apikey: serviceKey,
+      Authorization: "Bearer " + serviceKey,
+      "Content-Type": "application/json",
+    };
+    if (payload) headers["Content-Length"] = Buffer.byteLength(payload);
+    const r = https.request(
+      { hostname: u.hostname, path: u.pathname + u.search, method, headers, timeout: 15000 },
+      (up) => {
+        let b = ""; up.setEncoding("utf8");
+        up.on("data", (c) => (b += c));
+        up.on("end", () => {
+          let j = null;
+          try { j = b ? JSON.parse(b) : {}; } catch (_) { j = { raw: b }; }
+          resolve({ status: up.statusCode, body: j });
+        });
+      }
+    );
+    r.on("timeout", () => { r.destroy(); reject(new Error("登录服务超时，请稍后再试")); });
+    r.on("error", (e) => { console.log(`[supa] 请求异常 ${e.message}`); reject(new Error("登录服务异常，请稍后再试")); });
+    if (payload) r.write(payload);
+    r.end();
+  });
+}
+
+// —— 验证码通过后：建/登用户 → 换出真实 session（access_token + refresh_token）——
+async function issueSupabaseSession(phone) {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    const e = new Error("服务端未配置登录服务，请联系管理员");
+    e.config = true;
+    throw e;
+  }
+  const phoneIntl = "+86" + phone;
+  const syntheticEmail = phone + "@" + PHONE_EMAIL_DOMAIN; // 给 magiclink 用的确定性合成邮箱
+
+  // 1) 建用户（手机+合成邮箱，均直接确认）。已存在 → 422/409，忽略后续用邮箱继续。
+  const created = await supabaseRequest("POST", "/auth/v1/admin/users", serviceKey, {
+    phone: phoneIntl,
+    phone_confirm: true,
+    email: syntheticEmail,
+    email_confirm: true,
+  });
+  if (created.status >= 500) {
+    console.log(`[supa] 建用户失败 ${created.status} ${JSON.stringify(created.body).slice(0, 200)}`);
+    throw new Error("登录失败，请稍后再试");
+  }
+  // 200/201 新建成功；422/409 已存在——两种都继续走 generate_link。
+
+  // 2) 用 magiclink 生成 hashed_token（service_role 专属，不发邮件，仅取 token）
+  const link = await supabaseRequest("POST", "/auth/v1/admin/generate_link", serviceKey, {
+    type: "magiclink",
+    email: syntheticEmail,
+  });
+  const hashed = link.body && link.body.properties && link.body.properties.hashed_token;
+  if (!hashed) {
+    console.log(`[supa] generate_link 无 hashed_token status=${link.status} ${JSON.stringify(link.body).slice(0, 200)}`);
+    throw new Error("登录失败，请稍后再试");
+  }
+
+  // 3) 用 token_hash 换 session（/auth/v1/verify 返回 access_token + refresh_token）
+  const verified = await supabaseRequest("POST", "/auth/v1/verify", serviceKey, {
+    type: "magiclink",
+    token_hash: hashed,
+  });
+  const at = verified.body && verified.body.access_token;
+  const rt = verified.body && verified.body.refresh_token;
+  if (!at || !rt) {
+    console.log(`[supa] verify 无 token status=${verified.status} ${JSON.stringify(verified.body).slice(0, 200)}`);
+    throw new Error("登录失败，请稍后再试");
+  }
+  return { access_token: at, refresh_token: rt };
+}
+
+// —— JSON 响应小工具 ——
+function sendJson(res, status, obj) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(obj));
+}
+// —— 读取并解析请求体 JSON（带 1MB 上限）——
+function readJsonBody(req) {
+  return new Promise((resolve) => {
+    let body = "";
+    req.on("data", (c) => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on("end", () => { try { resolve(JSON.parse(body)); } catch (_) { resolve(null); } });
+    req.on("error", () => resolve(null));
+  });
+}
+
+// —— 路由①：POST /api/sms/send —— 校验手机号 → 限流 → 生成码 → 发短信 → 存内存 ——
+async function handleSmsSend(req, res) {
+  const j = await readJsonBody(req);
+  const phone = j && typeof j.phone === "string" ? j.phone.trim() : "";
+  if (!/^1[3-9]\d{9}$/.test(phone)) {
+    return sendJson(res, 400, { ok: false, error: "手机号格式不正确" });
+  }
+  // 频率限制
+  const now = Date.now();
+  const today = new Date().toISOString().slice(0, 10);
+  const rl = rateStore.get(phone) || { lastSentAt: 0, dayCount: 0, dayStamp: today };
+  if (rl.dayStamp !== today) { rl.dayCount = 0; rl.dayStamp = today; } // 跨天清零
+  if (now - rl.lastSentAt < RESEND_COOLDOWN_MS) {
+    const wait = Math.ceil((RESEND_COOLDOWN_MS - (now - rl.lastSentAt)) / 1000);
+    return sendJson(res, 429, { ok: false, error: `操作太频繁，请 ${wait} 秒后再试` });
+  }
+  if (rl.dayCount >= DAILY_LIMIT) {
+    return sendJson(res, 429, { ok: false, error: "今日获取验证码已达上限，请明天再试" });
+  }
+  // 生成 6 位码（crypto.randomInt 更稳）
+  const code = crypto.randomInt(100000, 1000000);
+  try {
+    await sendAliyunSms(phone, code);
+  } catch (e) {
+    return sendJson(res, e.config ? 500 : 500, { ok: false, error: e.message || "验证码发送失败，请稍后再试" });
+  }
+  // 发送成功才落库 + 计数
+  otpStore.set(phone, { code: String(code), expireAt: now + OTP_TTL_MS, tries: 0 });
+  rl.lastSentAt = now; rl.dayCount += 1;
+  rateStore.set(phone, rl);
+  return sendJson(res, 200, { ok: true });
+}
+
+// —— 路由②：POST /api/sms/verify —— 取码 → 校验 → 建/登用户 → 回 session ——
+async function handleSmsVerify(req, res) {
+  const j = await readJsonBody(req);
+  const phone = j && typeof j.phone === "string" ? j.phone.trim() : "";
+  const code = j && j.code != null ? String(j.code).trim() : "";
+  if (!/^1[3-9]\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
+    return sendJson(res, 400, { ok: false, error: "手机号或验证码格式不正确" });
+  }
+  const rec = otpStore.get(phone);
+  if (!rec || rec.expireAt < Date.now()) {
+    otpStore.delete(phone);
+    return sendJson(res, 400, { ok: false, error: "验证码已过期，请重新获取" });
+  }
+  if (rec.tries >= MAX_VERIFY_TRIES) {
+    otpStore.delete(phone);
+    return sendJson(res, 400, { ok: false, error: "尝试次数过多，请重新获取验证码" });
+  }
+  if (rec.code !== code) {
+    rec.tries += 1;
+    otpStore.set(phone, rec);
+    return sendJson(res, 400, { ok: false, error: "验证码不对" });
+  }
+  // 匹配成功：一次性作废
+  otpStore.delete(phone);
+  try {
+    const session = await issueSupabaseSession(phone);
+    return sendJson(res, 200, { ok: true, session });
+  } catch (e) {
+    return sendJson(res, 500, { ok: false, error: e.message || "登录失败，请稍后再试" });
+  }
+}
+
 // ---------- 静态文件 ----------
 function serveStatic(req, res) {
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
@@ -303,6 +569,14 @@ const server = http.createServer((req, res) => {
       const prompt = buildShenxianxiaPrompt(natal);
       callMiniMaxStream(prompt, res, raw);
     });
+    return;
+  }
+  if (req.url.split("?")[0] === "/api/sms/send" && req.method === "POST") {
+    handleSmsSend(req, res).catch(() => { try { sendJson(res, 500, { ok: false, error: "服务异常，请稍后再试" }); } catch (_) {} });
+    return;
+  }
+  if (req.url.split("?")[0] === "/api/sms/verify" && req.method === "POST") {
+    handleSmsVerify(req, res).catch(() => { try { sendJson(res, 500, { ok: false, error: "服务异常，请稍后再试" }); } catch (_) {} });
     return;
   }
   serveStatic(req, res);
