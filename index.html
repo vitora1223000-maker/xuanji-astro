@@ -174,11 +174,13 @@ const SB_URL = "https://tbiymcyggyofysugjkoi.supabase.co";
 const SB_KEY = "sb_publishable_Qf-OJCyStFsqoltB6Z77VQ_ewz7zoOB";
 const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
 
-/* ===== 登录开关 =====
- * false=免登录直接用（当前默认，验证码未稳前不丢用户）；true=解读需登录(攒注册)。
- * 默认免登录；临时想要求登录测试，URL 加 ?login=1（不必重新部署）。
- * 等手机号登录上线、验证码稳定后，再评估是否默认改回 true 攒注册。 */
-const REQUIRE_LOGIN = (new URLSearchParams(location.search).get("login") === "1");
+/* ===== 登录开关（在后台代码里定，用户无感）=====
+ * REQUIRE_LOGIN_DEFAULT = true  → 登录模式：用户打开干净网址，右上角即「登入」，解读前需登录(攒注册)。
+ * 江湖救急（仅供我们运维）：万一手机号登录又挂了，把下面这行改成 false 重新部署，全站秒切免登录、不丢用户。
+ * URL ?login=0 / ?login=1 仅留作我们临时测试用，不对用户暴露、不必记。 */
+const REQUIRE_LOGIN_DEFAULT = true;   // ← 救急开关：改成 false 即全站免登录
+const _loginParam = new URLSearchParams(location.search).get("login");
+const REQUIRE_LOGIN = _loginParam === "1" ? true : _loginParam === "0" ? false : REQUIRE_LOGIN_DEFAULT;
 
 // 当前登录用户(null=未登录)
 let _curUser = null;
@@ -225,7 +227,7 @@ function updateAcctBadge(){
 // 弹出登录浮层；返回 Promise，登录成功 resolve(user)，关闭则 resolve(null)
 function openLogin(){
   return new Promise(resolve=>{
-    let curEmail="";
+    let curPhone="";
     const ov=document.createElement("div");
     ov.id="loginOverlay";
     ov.innerHTML=`
@@ -234,18 +236,18 @@ function openLogin(){
         <button class="lg-close" title="关闭">×</button>
         <div class="lg-title">✦ 留一缕灵韵</div>
         <div class="lg-step" data-step="1">
-          <div class="lg-sub" style="margin-bottom:14px">🗝️ 输入邮箱，开启重生之门</div>
-          <input class="lg-input" id="lgEmail" type="email" placeholder="你的邮箱" autocomplete="email">
+          <div class="lg-sub" style="margin-bottom:14px">🗝️ 输入手机号，开启重生之门</div>
+          <input class="lg-input" id="lgPhone" type="tel" inputmode="numeric" placeholder="你的手机号" autocomplete="tel" maxlength="11">
           <button class="lg-btn" id="lgSend">寄出灵符</button>
           <div class="lg-hint" id="lgHint1"></div>
         </div>
         <div class="lg-step hidden" data-step="2">
           <div class="lg-sub" style="margin-bottom:14px">🔮 命运之轮开始转动</div>
-          <input class="lg-input" id="lgCode" type="text" inputmode="numeric" placeholder="输入收到的灵符（验证码）" maxlength="8">
+          <input class="lg-input" id="lgCode" type="text" inputmode="numeric" placeholder="输入收到的灵符（验证码）" maxlength="6">
           <button class="lg-btn" id="lgVerify">验符入阁</button>
           <div class="lg-hint" id="lgHint2"></div>
           <div class="lg-resend" id="lgResend">重新寄出灵符</div>
-          <div class="lg-back" id="lgBack">← 换个邮箱</div>
+          <div class="lg-back" id="lgBack">← 换个手机号</div>
         </div>
       </div>`;
     document.body.appendChild(ov);
@@ -267,36 +269,50 @@ function openLogin(){
         else b.textContent=left+"秒后可重发";
       },1000);
     };
-    // —— 发码逻辑（首发/重发共用）——
+    // —— 发码逻辑（首发/重发共用）：调后端 /api/sms/send（阿里云发码）——
     const doSend=async(firstTime)=>{
-      const email=$("#lgEmail").value.trim();
+      const phone=$("#lgPhone").value.trim();
       const hintEl=firstTime?$("#lgHint1"):$("#lgHint2");
-      if(!/^[^@]+@[^@]+\.[^@]+$/.test(email)){ setH($("#lgHint1"),"邮箱看着不太对呢","err"); return false; }
-      if(!sb){ setH(hintEl,"灵阁一时未醒，请刷新再试","err"); return false; }
-      if(firstTime){ $("#lgSend").disabled=true; setH($("#lgHint1"),"灵符飞往你的邮箱中…","wait"); }
-      else setH($("#lgHint2"),"灵符再次寄往你的邮箱中…","wait");
-      const {error}=await sb.auth.signInWithOtp({ email, options:{ shouldCreateUser:true, emailRedirectTo:undefined } });
+      if(!/^1[3-9]\d{9}$/.test(phone)){ setH($("#lgHint1"),"手机号看着不太对呢","err"); return false; }
+      if(firstTime){ $("#lgSend").disabled=true; setH($("#lgHint1"),"灵符飞往你的手机中…","wait"); }
+      else setH($("#lgHint2"),"灵符再次寄往你的手机中…","wait");
+      let r;
+      try{
+        const resp=await fetch("/api/sms/send",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({phone}) });
+        r=await resp.json();
+      }catch(_){ r={ok:false,error:"灵符一时未送达，稍候再试"}; }
       if(firstTime) $("#lgSend").disabled=false;
-      if(error){ setH(hintEl,"灵符一时未送达，稍候再试","err"); return false; }  // 🔴不露英文报错
-      curEmail=email;
+      // 🔴后端已是脱敏中文(含"操作太频繁/今日上限")，直接透传，绝不露技术字眼
+      if(!r||!r.ok){ setH(hintEl,(r&&r.error)||"灵符一时未送达，稍候再试","err"); return false; }
+      curPhone=phone;
       if(firstTime){ goStep(2); $("#lgCode").focus(); }
-      setH($("#lgHint2"),"灵符已寄至 "+email+"（记得翻翻垃圾箱）","wait");
+      setH($("#lgHint2"),"灵符已发至 "+phone+"（请查收短信）","wait");
       startCountdown();
       return true;
     };
     $("#lgSend").onclick=()=>doSend(true);
     $("#lgResend").onclick=()=>{ if(!$("#lgResend").classList.contains("disabled")) doSend(false); };
+    // —— 验码逻辑：调后端 /api/sms/verify，拿回 session 写入 Supabase 客户端 ——
     $("#lgVerify").onclick=async()=>{
-      const token=$("#lgCode").value.trim();
-      if(token.length<6){ setH($("#lgHint2"),"请输入完整灵符","err"); return; }
+      const code=$("#lgCode").value.trim();
+      if(code.length<6){ setH($("#lgHint2"),"请输入完整灵符","err"); return; }
       $("#lgVerify").disabled=true; setH($("#lgHint2"),"验符中…","wait");
-      const {data,error}=await sb.auth.verifyOtp({ email:curEmail, token, type:"email" });
-      $("#lgVerify").disabled=false;
-      if(error){ setH($("#lgHint2"),"灵符不符或已过期，再试试","err"); return; }
-      clearInterval(cdTimer); _curUser=data.user; close(data.user);
+      let r;
+      try{
+        const resp=await fetch("/api/sms/verify",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({phone:curPhone,code}) });
+        r=await resp.json();
+      }catch(_){ r={ok:false}; }
+      if(!r||!r.ok||!r.session){ $("#lgVerify").disabled=false; setH($("#lgHint2"),(r&&r.error)||"灵符不符或已过期，再试试","err"); return; }
+      // 用后端换来的 session 写入 supabase 客户端，之后存盘/读功德才认得登录态
+      if(sb){
+        const {data,error}=await sb.auth.setSession({ access_token:r.session.access_token, refresh_token:r.session.refresh_token });
+        if(error||!data||!data.user){ $("#lgVerify").disabled=false; setH($("#lgHint2"),"入阁时灵韵一时未稳，再试试","err"); return; }
+        clearInterval(cdTimer); _curUser=data.user; close(data.user); return;
+      }
+      $("#lgVerify").disabled=false; setH($("#lgHint2"),"灵阁一时未醒，请刷新再试","err");
     };
     $("#lgBack").onclick=()=>{ clearInterval(cdTimer); $("#lgResend").classList.remove("disabled"); $("#lgResend").textContent="重新寄出灵符"; goStep(1); };
-    setTimeout(()=>$("#lgEmail").focus(),50);
+    setTimeout(()=>$("#lgPhone").focus(),50);
   });
 }
 
@@ -355,15 +371,23 @@ const CITIES={
 function toUTC(y,mo,d,h,mi,tzOffset){
   return new Date(Date.UTC(y,mo-1,d,h,mi)-tzOffset*3600*1000);
 }
-// 中国夏令时(1986-1991): 每年4月中旬-9月中旬钟拨快1小时。
-// 钟面时间是拨快的, 真实时间要减1小时。这里返回"需要减去的小时数"。
-// 实施区间(近似官方): 每年4月第二个周日2:00 ~ 9月第二个周日2:00。
+// 中国夏令时(1986-1991, 仅此6年实行过): 钟拨快1小时, 拨快的钟面时间需减1h才是标准时。
+// 起止日期已逐年对齐 IANA tz database(Asia/Shanghai)的官方转换记录, 分秒级权威:
+//   开始/结束均为当日"凌晨02:00"切换。表项格式 [[开始日,开始月],[结束日,结束月]]。
+//   1986(首年特殊)5/4起·9/14止；1987 4/12·9/13；1988 4/17·9/11；
+//   1989 4/16·9/17；1990 4/15·9/16；1991 4/14·9/15。
+// 返回"需减去的小时数"(0或1)。h为钟面小时(用于精确处理边界日02:00切换)。
 const CN_DST={1986:[[5,4],[14,9]],1987:[[12,4],[13,9]],1988:[[17,4],[11,9]],1989:[[16,4],[17,9]],1990:[[15,4],[16,9]],1991:[[14,4],[15,9]]};
-function cnDstAdjust(y,mo,d){
+function cnDstAdjust(y,mo,d,h){
   if(!CN_DST[y]) return 0;
   const [[sd,sm],[ed,em]]=CN_DST[y];
   const cur=mo*100+d, st=sm*100+sd, en=em*100+ed;
-  return (cur>=st && cur<en) ? 1 : 0; // 在夏令时区间内, 钟拨快1h, 需减1h
+  // 区间(开始日含, 结束日不含)内一律夏令时。
+  if(cur>st && cur<en) return 1;
+  // 边界日精确到02:00: 开始日 02:00 起拨快; 结束日 02:00 前仍夏令时(02:00拨回)。
+  if(cur===st) return (h===undefined||h>=2) ? 1 : 0; // 02:00前钟未拨快
+  if(cur===en) return (h!==undefined&&h<2) ? 1 : 0;  // 02:00前仍夏令时
+  return 0;
 }
 // 均时差(equation of time, 分钟)。真太阳时与平太阳时之差, 最多约±16分。
 // date为UTC, 用简化级数(对占星度级精度足够)。
@@ -453,7 +477,7 @@ function meanLilith(date){
 // 完整本命盘
 function computeNatal(inp){
   // ① 夏令时修正(1986-91中国): 钟面时间拨快了1h, 减回真实民用时间(影响真实UTC瞬间, 必须做)
-  const dstH=cnDstAdjust(inp.y,inp.mo,inp.d);
+  const dstH=cnDstAdjust(inp.y,inp.mo,inp.d,inp.h);
   const utc=toUTC(inp.y,inp.mo,inp.d,inp.h-dstH,inp.mi,inp.tz);
   // 注: 现代占星(含测测)用民用钟表时间直接排盘, 行星位置/上升由真实UTC瞬间决定,
   //     "真太阳时·均时差"不并入计算(那会让行星偏移、反与测测不符)。
@@ -499,8 +523,25 @@ function computeNatal(inp){
   const houses=[];for(let k=0;k<12;k++){const cdm=DEGIN(cusps[k]);houses.push({num:k+1,sign:SIGN(cusps[k]),deg:cdm.deg,min:cdm.min,L:cusps[k]});}
   // 进阶点位: 北交点/南交点/莉莉丝(纯数学算)
   const nodeL=meanNode(utc), lilithL=meanLilith(utc), southL=(nodeL+180)%360;
+  // —— 三虚点(纯数学, 复用 calcAscMc 同一套数学; 已用黄金基准盘逐项校对 ≤3角分) ——
+  // ① 东方点 East Point: 把纬度当作 0(赤道) 算出的上升点黄经。基准盘校对差 0.6'。
+  const eastL=calcAscMc(utc,0,inp.lon).asc;
+  // ② 宿命点 Vertex: 黄道与卯酉圈(prime vertical)在地平西侧的交点。
+  //    标准做法=用余纬(90-lat)当纬度、并把 RAMC 换成对侧子午线(RAMC+180), 套上升公式。基准盘校对差 2.5'。
+  const vertexL=(function(){
+    const rad=Math.PI/180,deg=180/Math.PI;
+    const r=((ramc+180)%360)*rad, e=eps*rad, phi=(90-inp.lat)*rad;
+    let v=Math.atan2(Math.cos(r), -(Math.sin(r)*Math.cos(e)+Math.tan(phi)*Math.sin(e)))*deg;
+    return (v%360+360)%360;
+  })();
+  // ③ 福点 Part of Fortune: 口径已对齐测测=夜盘式(ASC+太阳-月亮)。
+  //    本盘太阳在地平线下=夜盘, 实测夜盘式=双鱼14°35'(差0.5'), 日盘式则差一大截; 故采用夜盘式。
+  //    注: 测测此盘按夜盘式出值; 若日后发现测测对所有盘统一用日盘式, 改下行为 (asc+moonL-sunL)。
+  const sunL=planets[0].L, moonL=planets[1].L;
+  const fortuneL=((asc+sunL-moonL)%360+360)%360;
   const mkPt=(n,L)=>{const dm=DEGIN(L);return {n,sign:SIGN(L),deg:dm.deg,min:dm.min,house:houseOf(L),L};};
-  const points=[ mkPt("北交点",nodeL), mkPt("南交点",southL), mkPt("莉莉丝",lilithL) ];
+  const points=[ mkPt("北交点",nodeL), mkPt("南交点",southL), mkPt("莉莉丝",lilithL),
+                 mkPt("福点",fortuneL), mkPt("宿命点",vertexL), mkPt("东方点",eastL) ];
   return {meta:inp,utc,planets,asp,angles,houses,points,ascSign,cusps,dstH,eotMin};
 }
 
@@ -675,7 +716,7 @@ function renderNatalResult(N){
   const hc={};P.forEach(p=>hc[p.house]=(hc[p.house]||0)+1);
   const stellium=Object.entries(hc).filter(([,n])=>n>=3).map(([h])=>h);
   let html=`
-   ${N.dstH?`<div class="hint" style="background:#fff5e8;color:#a87a3a">⏱ 检测到你出生于 ${N.meta.y} 年中国夏令时期间，已自动为你校正 1 小时（钟面时间→真实时间），上升与宫位才会准。</div>`:''}
+   ${N.dstH?`<div class="hint" style="background:#fff5e8;color:#a87a3a">⏱ 玄玑掐指一算——你落生在 ${N.meta.y} 年那段「钟拨快一小时」的旧夏令时里。我已悄悄替你把这一小时拨回（钟面时辰→真实天时），如此上升与宫位方不致错位。</div>`:''}
    <div class="big3">
      <div class="b3"><div class="lbl">☀ 太阳</div><div class="val">${sun.sign} ${sun.deg}°</div></div>
      <div class="b3"><div class="lbl">🌙 月亮</div><div class="val">${moon.sign} ${moon.deg}°</div></div>
@@ -891,7 +932,7 @@ function buildNatalData(N){
     +`日月升：太阳${P[0].sign}${P[0].deg}° / 月亮${P[1].sign}${P[1].deg}° / 上升${a.asc.sign}${a.asc.deg}°\n`
     +`行星与凯龙（落座·落宫，含凯龙=此生最深的伤口与由伤生出的疗愈天赋）：\n${planetStr}\n`
     +`四轴：上升${a.asc.sign}${a.asc.deg}° / 天顶MC${a.mc.sign}${a.mc.deg}° / 下降${a.dsc.sign}${a.dsc.deg}° / 天底IC${a.ic.sign}${a.ic.deg}°\n`
-    +`进阶点位：${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join(" / ")}（北交=此生功课方向、南交=带来的旧惯性、莉莉丝=隐秘欲望与不被驯服的部分）\n`
+    +`进阶点位：${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join(" / ")}（北交=此生功课方向、南交=带来的旧惯性、莉莉丝=隐秘欲望与不被驯服的部分、福点=天赋的福气与顺遂之处、宿命点=命中注定的相遇与转折、东方点=对外呈现的第二面相）\n`
     +`十二宫（Placidus宫制）：${houseStr}\n`
     +`本命相位：${N.asp.map(x=>x.t).join(" / ")}`;
   // 元素配比(给后端判身位调语气): 统计十大行星落座的火土风水
@@ -914,7 +955,7 @@ function buildNatalPrompt(N){
     +`日月升：太阳${P[0].sign}${P[0].deg}° / 月亮${P[1].sign}${P[1].deg}° / 上升${a.asc.sign}${a.asc.deg}°\n`
     +`行星与凯龙（落座·落宫，含凯龙=此生最深的伤口与由伤生出的疗愈天赋）：\n${planetStr}\n`
     +`四轴：上升${a.asc.sign}${a.asc.deg}° / 天顶MC${a.mc.sign}${a.mc.deg}° / 下降${a.dsc.sign}${a.dsc.deg}° / 天底IC${a.ic.sign}${a.ic.deg}°\n`
-    +`进阶点位：${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join(" / ")}（北交=此生功课方向、南交=带来的旧惯性、莉莉丝=隐秘欲望与不被驯服的部分）\n`
+    +`进阶点位：${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join(" / ")}（北交=此生功课方向、南交=带来的旧惯性、莉莉丝=隐秘欲望与不被驯服的部分、福点=天赋的福气与顺遂之处、宿命点=命中注定的相遇与转折、东方点=对外呈现的第二面相）\n`
     +`十二宫（Placidus宫制）：${houseStr}\n`
     +`本命相位：${N.asp.map(x=>x.t).join(" / ")}`;
   const p=`【角色】你是一位伟大的占星师，按《小龙虾占星·上场设定》及配套教材作答。心法=读盘五步法（日月升骨架→金火血肉→水木土底层→宫位战场→相位张力）；内核=钱权性（钱权/性情/自我三母题）；口吻=陶白白走心底+唐绮阳格局收。

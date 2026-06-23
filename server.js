@@ -402,9 +402,11 @@ async function issueSupabaseSession(phone) {
     type: "magiclink",
     email: syntheticEmail,
   });
-  const hashed = link.body && link.body.properties && link.body.properties.hashed_token;
+  // hashed_token 兼容两种结构：旧版在 properties 下，新版可能平铺在顶层
+  const lb = link.body || {};
+  const hashed = (lb.properties && lb.properties.hashed_token) || lb.hashed_token;
   if (!hashed) {
-    console.log(`[supa] generate_link 无 hashed_token status=${link.status} ${JSON.stringify(link.body).slice(0, 200)}`);
+    console.log(`[supa] generate_link 无 hashed_token status=${link.status} ${JSON.stringify(lb).slice(0, 800)}`);
     throw new Error("登录失败，请稍后再试");
   }
 
