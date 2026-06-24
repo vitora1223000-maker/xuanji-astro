@@ -55,8 +55,42 @@
   .form-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:14px;flex-wrap:wrap}
   .form-row label{width:72px;color:var(--soft);flex-shrink:0}
   .form-row input,.form-row select{flex:1;min-width:110px;border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:14px;color:var(--ink);background:rgba(255,255,255,.06)}
+  /* 下拉箭头：与出生时间框用同一个 ▾ 字符，保证大小完全一致 */
   .form-row input::-webkit-calendar-picker-indicator{filter:invert(.7)}
   .form-row option{background:#1a1f3a;color:var(--ink)}
+  /* === 出生时间·金色滚轮选择器 === */
+  .pill{flex:1;min-width:110px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px;color:var(--ink);background:rgba(255,255,255,.06);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
+  .pill .ph{color:var(--soft)}
+  .pill .chev{color:var(--gold,#e8c976);font-size:12px;flex-shrink:0;margin-left:8px}
+  .dt-mask{position:fixed;inset:0;background:rgba(5,7,18,.55);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:.25s;z-index:90}
+  .dt-mask.on{opacity:1;pointer-events:auto}
+  .dt-sheet{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;background:linear-gradient(180deg,#141833,#0c1024);border-top:1px solid var(--line);border-radius:22px 22px 0 0;padding:14px 16px 26px;transform:translateY(110%);transition:transform .28s cubic-bezier(.2,.8,.2,1);z-index:91;box-shadow:0 -10px 40px rgba(0,0,0,.5)}
+  .dt-sheet.on{transform:translateY(0)}
+  .dt-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .dt-bar .t{font-size:14px;color:var(--gold,#e8c976);letter-spacing:1px}
+  .dt-bar button{font-size:14px;cursor:pointer;padding:7px 20px;border-radius:18px;transition:.15s}
+  .dt-cancel{color:var(--soft);background:transparent;border:1px solid var(--line)}
+  .dt-cancel:active{background:rgba(255,255,255,.05)}
+  .dt-ok{color:var(--soft);font-weight:600;background:transparent;border:1px solid var(--line)}
+  .dt-ok.ready{color:#1a1530;border:0;background:linear-gradient(120deg,#e8c976,#f3d98c);box-shadow:0 2px 12px rgba(232,201,118,.35)}
+  .dt-ok:active{opacity:.85}
+  .dt-wheels{display:flex;gap:4px;height:200px;position:relative;overflow:hidden}
+  .dt-wheels::before{content:"";position:absolute;left:0;right:0;top:80px;height:40px;border-top:1px solid rgba(201,168,255,.35);border-bottom:1px solid rgba(201,168,255,.35);background:rgba(201,168,255,.07);pointer-events:none;z-index:2;border-radius:8px}
+  .dt-col{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;text-align:center}
+  .dt-col::-webkit-scrollbar{display:none}
+  .dt-col .pad{height:80px}
+  .dt-col .it{height:40px;line-height:40px;font-size:17px;color:var(--soft);scroll-snap-align:center;transition:color .15s}
+  .dt-col .it.sel{color:var(--ink);font-weight:600;text-shadow:0 0 10px rgba(201,168,255,.4)}
+  /* MBTI 4×4 卡片网格 */
+  .mbti-sheet{padding-bottom:30px}
+  .mbti-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px;max-height:60vh;overflow-y:auto}
+  .mbti-cell{border-radius:12px;padding:12px 4px 10px;text-align:center;cursor:pointer;border:2px solid transparent;transition:.15s;user-select:none}
+  .mbti-cell .code{font-size:15px;font-weight:700;letter-spacing:.5px;color:#2a2540}
+  .mbti-cell .off{font-size:10px;margin-top:2px;color:#5a5570;opacity:.9}
+  .mbti-cell .nick{font-size:11.5px;margin-top:1px;color:#3a3550;font-weight:600}
+  .mbti-cell.nt{background:rgba(206,184,250,.82)} .mbti-cell.nf{background:rgba(190,224,176,.82)}
+  .mbti-cell.st{background:rgba(174,214,232,.82)} .mbti-cell.sp{background:rgba(238,222,160,.85)}
+  .mbti-cell.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 4px 14px rgba(232,201,118,.3)}
   .seg{display:flex;gap:8px;flex:1}
   .seg .opt{flex:1;text-align:center;padding:9px;border:1px solid var(--line);border-radius:10px;cursor:pointer;color:var(--soft);user-select:none;transition:.15s}
   .seg .opt.on{background:linear-gradient(120deg,#c9a8ff,#e8c976);color:#1a1530;border-color:transparent;font-weight:600}
@@ -104,7 +138,7 @@
   @keyframes guideWordGlow{0%,100%{opacity:.7;text-shadow:0 0 8px rgba(232,201,118,.2)}50%{opacity:1;text-shadow:0 0 16px rgba(230,200,120,.7),0 0 28px rgba(230,200,120,.35)}}
   @keyframes guideArrowGlow{0%,100%{opacity:.75;filter:drop-shadow(0 0 5px rgba(230,200,120,.4))}50%{opacity:1;filter:drop-shadow(0 0 12px rgba(230,200,120,.85))}}
   /* —— 解读按钮灵气光晕(烛火呼吸·点击即收) —— */
-  .read-btn.glow{animation:glowPulse 2.8s ease-in-out infinite}
+  .read-btn.glow,.btn.glow{animation:glowPulse 2.8s ease-in-out infinite}
   @keyframes glowPulse{
     0%,100%{box-shadow:0 6px 20px rgba(201,168,255,.25),0 0 0 0 rgba(230,200,120,0)}
     50%{box-shadow:0 6px 22px rgba(201,168,255,.3),0 0 22px 4px rgba(230,200,120,.45)}
@@ -163,6 +197,75 @@
   <div class="foot">玄玑 · Astro · 星历与瑞士星历同源 · 你的出生信息只在本机计算，不上传<br>小红书 @山玉居士　·　以占星解构人性，用数学逻辑主宰人生</div>
 </div>
 
+<!-- 出生时间·金色滚轮浮层（放在 body 直属层，脱离 .card 的 backdrop-filter，否则 position:fixed 关不干净） -->
+<div class="dt-mask" id="dtMask"></div>
+<div class="dt-sheet" id="dtSheet">
+  <div class="dt-bar">
+    <button class="dt-cancel" id="dtCancel">取消</button>
+    <span class="t">玄玑 · 择时</span>
+    <button class="dt-ok" id="dtOk">确定</button>
+  </div>
+  <div class="dt-wheels" id="dtWheels">
+    <div class="dt-col" data-k="y"></div>
+    <div class="dt-col" data-k="m"></div>
+    <div class="dt-col" data-k="d"></div>
+    <div class="dt-col" data-k="h"></div>
+    <div class="dt-col" data-k="mi"></div>
+  </div>
+</div>
+
+<!-- 出生地·三级联动滚轮浮层（复用 .dt-* 样式） -->
+<div class="dt-mask" id="locMask"></div>
+<div class="dt-sheet" id="locSheet">
+  <div class="dt-bar">
+    <button class="dt-cancel" id="locCancel">取消</button>
+    <span class="t">玄玑 · 来处</span>
+    <button class="dt-ok" id="locOk">确定</button>
+  </div>
+  <div class="dt-wheels" id="locWheels">
+    <div class="dt-col" data-k="prov"></div>
+    <div class="dt-col" data-k="city"></div>
+    <div class="dt-col" data-k="dist"></div>
+  </div>
+</div>
+
+<!-- 现居地·三级联动滚轮（选填，暂不参与排盘） -->
+<div class="dt-mask" id="resMask"></div>
+<div class="dt-sheet" id="resSheet">
+  <div class="dt-bar">
+    <button class="dt-cancel" id="resCancel">取消</button>
+    <span class="t">玄玑 · 居处</span>
+    <button class="dt-ok" id="resOk">确定</button>
+  </div>
+  <div class="dt-wheels" id="resWheels">
+    <div class="dt-col" data-k="prov"></div>
+    <div class="dt-col" data-k="city"></div>
+    <div class="dt-col" data-k="dist"></div>
+  </div>
+</div>
+
+<!-- 时区·单列滚轮 -->
+<div class="dt-mask" id="tzMask"></div>
+<div class="dt-sheet" id="tzSheet">
+  <div class="dt-bar">
+    <button class="dt-cancel" id="tzCancel">取消</button>
+    <span class="t">玄玑 · 时区</span>
+    <button class="dt-ok" id="tzOk">确定</button>
+  </div>
+  <div class="dt-wheels" id="tzWheels"><div class="dt-col" data-k="tz"></div></div>
+</div>
+
+<!-- 人格类型·4×4 彩色卡片网格（选填，暂不参与排盘） -->
+<div class="dt-mask" id="mbtiMask"></div>
+<div class="dt-sheet mbti-sheet" id="mbtiSheet">
+  <div class="dt-bar">
+    <button class="dt-cancel" id="mbtiCancel">取消</button>
+    <span class="t">选择我的人格类型</span>
+    <button class="dt-ok" id="mbtiOk">确定</button>
+  </div>
+  <div class="mbti-grid" id="mbtiGrid"></div>
+</div>
+
 <script src="./astronomy.js"></script>
 <script src="./cities.js"></script>
 <script src="./ephemeris.bundle.js"></script>
@@ -172,7 +275,14 @@
 /* ===== Supabase 登录（与正式站同一项目，账号打通）===== */
 const SB_URL = "https://tbiymcyggyofysugjkoi.supabase.co";
 const SB_KEY = "sb_publishable_Qf-OJCyStFsqoltB6Z77VQ_ewz7zoOB";
-const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY, {
+  auth: {
+    persistSession: true,        // 把 session 存进 localStorage，刷新/重开不丢
+    autoRefreshToken: true,      // access_token 快过期时自动用 refresh_token 续期，不用重登
+    storageKey: "xuanji-auth",   // 固定 key，避免默认 key 变动导致捞不回
+    storage: window.localStorage
+  }
+}) : null;
 
 /* ===== 登录开关（在后台代码里定，用户无感）=====
  * REQUIRE_LOGIN_DEFAULT = true  → 登录模式：用户打开干净网址，右上角即「登入」，解读前需登录(攒注册)。
@@ -186,7 +296,27 @@ const REQUIRE_LOGIN = _loginParam === "1" ? true : _loginParam === "0" ? false :
 let _curUser = null;
 async function refreshUser(){
   if(!sb) return null;
-  try{ const {data}=await sb.auth.getUser(); _curUser = (data&&data.user)?data.user:null; }catch(_){ _curUser=null; }
+  // ① 先读 supabase 自己的 session（邮箱登录走这条，正常落盘）
+  try{
+    const {data:s}=await sb.auth.getSession();
+    if(s&&s.session&&s.session.user){ _curUser=s.session.user; updateAcctBadge(); return _curUser; }
+  }catch(_){}
+  // ② supabase 没恢复出来 → 用我们短信登录时存的备份 token 重新 setSession 补回
+  //    （Safari 下手动 setSession 注入的短信 session 不落盘，这是邮箱登录没有、短信登录才有的问题）
+  try{
+    const bak=localStorage.getItem("xuanji-auth-bak");
+    if(bak){
+      const {at,rt}=JSON.parse(bak);
+      if(at&&rt){
+        const {data,error}=await sb.auth.setSession({access_token:at, refresh_token:rt});
+        if(!error&&data&&data.user){ _curUser=data.user; updateAcctBadge(); return _curUser; }
+        // token 失效（过期等）→ 清掉备份，避免每次启动白试
+        if(error) localStorage.removeItem("xuanji-auth-bak");
+      }
+    }
+  }catch(_){}
+  // ③ 都没有 → 回退网络校验
+  try{ const {data}=await sb.auth.getUser(); _curUser=(data&&data.user)?data.user:null; }catch(_){ _curUser=null; }
   updateAcctBadge();
   return _curUser;
 }
@@ -216,7 +346,7 @@ function updateAcctBadge(){
   const bind=()=>{
     const btn=document.getElementById("acctBtn");
     if(btn) btn.onclick=async()=>{
-      if(_curUser){ if(sb) await sb.auth.signOut(); _curUser=null; updateAcctBadge(); }   // 已登录→登出
+      if(_curUser){ if(sb) await sb.auth.signOut(); try{localStorage.removeItem("xuanji-auth-bak");}catch(_){} _curUser=null; updateAcctBadge(); }   // 已登录→登出(连备份token一起清，否则刷新又被恢复)
       else { const u=await openLogin(); if(u){ _curUser=u; updateAcctBadge(); } }          // 未登录→弹登录
     };
   };
@@ -307,6 +437,11 @@ function openLogin(){
       if(sb){
         const {data,error}=await sb.auth.setSession({ access_token:r.session.access_token, refresh_token:r.session.refresh_token });
         if(error||!data||!data.user){ $("#lgVerify").disabled=false; setH($("#lgHint2"),"入阁时灵韵一时未稳，再试试","err"); return; }
+        // 双保险：把 token 存进我们自己的独立备份 key（不依赖 supabase 内部格式）。
+        // Safari/ITP 下 setSession 的内部持久化可能不落盘，刷新即丢；启动时若 supabase 没恢复，就用这份备份 setSession 补回。
+        try{
+          localStorage.setItem("xuanji-auth-bak", JSON.stringify({ at:r.session.access_token, rt:r.session.refresh_token }));
+        }catch(_){}
         clearInterval(cdTimer); _curUser=data.user; close(data.user); return;
       }
       $("#lgVerify").disabled=false; setH($("#lgHint2"),"灵阁一时未醒，请刷新再试","err");
@@ -609,36 +744,36 @@ function renderNatalTab(){
     <div class="card">
       <h2>✦ 排我的本命盘</h2>
       <div id="natalForm">
-        <div class="form-row"><label>出生日期</label><select id="bY"></select><select id="bM"></select><select id="bD"></select></div>
-        <div class="form-row"><label>出生时间</label><input type="time" id="bTime" value="12:00">
-          <select id="bTz">
-            <option value="8" selected>+8 北京/中国</option>
-            <option value="9">+9 东京/首尔</option>
-            <option value="0">±0 伦敦</option>
-            <option value="1">+1 巴黎/柏林</option>
-            <option value="-5">-5 美东</option>
-            <option value="-8">-8 美西</option>
-          </select></div>
-        <div class="hint">⏰ 出生时间越准越好。不准 → 上升星座和宫位会不准（这俩最影响“你这个人的外壳和人生格局”）。问到妈妈/出生证明最稳。</div>
+        <div class="form-row"><label>出生时间</label>
+          <div class="pill" id="dtPill"><span id="dtVal" class="ph">请选择出生日期时间</span><span class="chev">▾</span></div></div>
+        <div style="font-size:11px;color:var(--soft);opacity:.8;margin:-4px 0 8px 72px">请填公历（身份证上的生日）；不确定时辰可填 12:00，但会影响上升与宫位</div>
         <div class="form-row"><label>出生地</label>
-          <select id="bProv"><option value="">省/直辖市</option></select>
-          <select id="bCity2"><option value="">市</option></select>
-          <select id="bDist"><option value="">区/县</option></select></div>
+          <div class="pill" id="locPill"><span id="locVal" class="ph">请选择出生地</span><span class="chev">▾</span></div>
+          <input type="hidden" id="bProv"><input type="hidden" id="bCity2"><input type="hidden" id="bDist"></div>
         <div class="form-row latlon" id="latlonRow"><label>经纬度</label>
           <input type="number" id="bLat" placeholder="纬度 如39.9" step="0.01">
           <input type="number" id="bLon" placeholder="经度 如116.4" step="0.01"></div>
         <div class="form-row"><label></label><span class="hint" style="margin:0;cursor:pointer;flex:1" id="toggleLL">海外出生 / 找不到？→ 点这里手填经纬度</span></div>
+        <div class="form-row"><label>现居地</label>
+          <div class="pill" id="resPill"><span id="resVal" class="ph">请选择现居地</span><span class="chev">▾</span></div>
+          <input type="hidden" id="rProv"><input type="hidden" id="rCity"><input type="hidden" id="rDist"></div>
+        <div class="form-row"><label>时区<br><span style="font-size:10px;opacity:.7">(出生地)</span></label>
+          <div class="pill" id="tzPill"><span id="tzVal">[东8] 中国</span><span class="chev">▾</span></div>
+          <input type="hidden" id="bTz" value="8"></div>
+        <div class="form-row"><label>人格类型</label>
+          <div class="pill" id="mbtiPill"><span id="mbtiVal" class="ph">请选择 MBTI 人格</span><span class="chev">▾</span></div>
+          <input type="hidden" id="bMbti"></div>
         <div class="form-row"><label>性别</label>
           <div class="seg" id="bSex"><div class="opt on" data-v="女">女</div><div class="opt" data-v="男">男</div></div></div>
         <div class="hint">💫 占星是帮你看见自己、读懂能量与课题的镜子，不预言吉凶、不替你做决定，路怎么走始终由你。</div>
-        <button class="btn" id="calcNatal">✨ 排我的本命盘</button>
+        <button class="btn glow" id="calcNatal">✨ 排我的本命盘</button>
       </div>
       <div id="natalResult"></div>
     </div>`;
     // 绑定交互
     document.getElementById("toggleLL").onclick=()=>{const r=document.getElementById("latlonRow");r.style.display=r.style.display==="flex"?"none":"flex";};
     document.querySelectorAll("#bSex .opt").forEach(o=>o.onclick=()=>{document.querySelectorAll("#bSex .opt").forEach(x=>x.classList.remove("on"));o.classList.add("on");});
-    document.getElementById("calcNatal").onclick=doCalcNatal;
+    document.getElementById("calcNatal").onclick=function(){ this.classList.remove("glow"); doCalcNatal(); }; // 排完即收光晕，注意力转到解读按钮
     initCitySelect();
     initDateSelect();
   }
@@ -646,45 +781,193 @@ function renderNatalTab(){
   if(!natalResult) document.getElementById("prompt").textContent="排好盘后，这里会生成喂给伟大的占星师的深度解读 Prompt。";
 }
 
-// 生日：年/月/日三下拉（直接滚选，不弹iOS日历、不打勾、不退出）
+// 出生时间·金色滚轮（年/月/日/时/分 五列合一，弹底部浮层）
+const DT_H=40;                       // 每行高度，与 .dt-col .it 的 height 一致
+const dtSel={y:0,m:0,d:0,h:0,mi:0};  // 当前选中值；0 表示用户尚未选过
+let dtPicked=false;                  // 用户是否已确认过一次
+let dtProg=false;                    // true=程序在定位滚轮(非用户拨动)，期间不点亮确定
+function dtRange(a,b,suf){const r=[];for(let i=a;i<=b;i++)r.push({v:i,t:i+suf});return r;}
+function dtDaysIn(y,m){return new Date(y,m,0).getDate();}
 function initDateSelect(){
-  const yS=document.getElementById("bY"),mS=document.getElementById("bM"),dS=document.getElementById("bD");
-  if(!yS||yS.options.length) return;
-  const opt=(v,t)=>`<option value="${v}">${t}</option>`;
-  let yh='<option value="">年</option>'; for(let y=1950;y<=2025;y++) yh+=opt(y,y+"年");
-  let mh='<option value="">月</option>'; for(let m=1;m<=12;m++) mh+=opt(m,m+"月");
-  yS.innerHTML=yh; mS.innerHTML=mh;
-  function fillDays(){
-    const y=+yS.value||2000,m=+mS.value||1, dim=new Date(y,m,0).getDate();
-    const cur=dS.value; let dh='<option value="">日</option>';
-    for(let d=1;d<=dim;d++) dh+=opt(d,d+"日");
-    dS.innerHTML=dh; if(cur&&+cur<=dim) dS.value=cur;
+  const wheels=document.getElementById("dtWheels"); if(!wheels) return;
+  // 默认值：1995-01-01 12:00（中间档，给个起手位）
+  if(!dtSel.y){dtSel.y=1995;dtSel.m=1;dtSel.d=1;dtSel.h=12;dtSel.mi=0;}
+  const ranges={
+    y:dtRange(1950,2025,"年"), m:dtRange(1,12,"月"), d:dtRange(1,31,"日"),
+    h:dtRange(0,23,"时"), mi:dtRange(0,59,"分")
+  };
+  const cols={};
+  wheels.querySelectorAll(".dt-col").forEach(col=>{cols[col.dataset.k]=col;});
+  function build(k){
+    const col=cols[k];
+    const items=k==='d'?ranges.d.slice(0,dtDaysIn(dtSel.y,dtSel.m)):ranges[k];
+    col.innerHTML='<div class="pad"></div>'+items.map(o=>`<div class="it" data-v="${o.v}">${o.t}</div>`).join('')+'<div class="pad"></div>';
+    let idx=items.findIndex(o=>o.v===dtSel[k]); if(idx<0)idx=0;
+    col.scrollTop=idx*DT_H; mark(col,idx);
+    let t;
+    col.onscroll=()=>{
+      clearTimeout(t);
+      const i=Math.round(col.scrollTop/DT_H); mark(col,i);
+      t=setTimeout(()=>{
+        col.scrollTo({top:i*DT_H,behavior:'smooth'});
+        const its=col.querySelectorAll('.it'); if(its[i])dtSel[k]=+its[i].dataset.v;
+        if(!dtProg) document.getElementById("dtOk").classList.add("ready"); // 仅用户拨动才点亮(程序定位不算)
+        if(k==='y'||k==='m')build('d'); // 改年月→重算当月天数
+      },90);
+    };
   }
-  fillDays(); yS.onchange=fillDays; mS.onchange=fillDays;
+  function mark(col,i){col.querySelectorAll('.it').forEach((el,j)=>el.classList.toggle('sel',j===i));}
+  ['y','m','d','h','mi'].forEach(build);
+
+  const mask=document.getElementById("dtMask"),sheet=document.getElementById("dtSheet");
+  function open(){
+    mask.classList.add('on');sheet.classList.add('on');
+    document.getElementById("dtOk").classList.remove("ready"); // 打开时素，拨动后才亮金（与其他浮层一致）
+    dtProg=true;  // 标记：接下来的滚动是程序定位，不算用户拨动
+    setTimeout(()=>{['y','m','d','h','mi'].forEach(k=>{
+      const items=k==='d'?ranges.d.slice(0,dtDaysIn(dtSel.y,dtSel.m)):ranges[k];
+      let idx=items.findIndex(o=>o.v===dtSel[k]); if(idx<0)idx=0; cols[k].scrollTop=idx*DT_H; mark(cols[k],idx);
+    }); setTimeout(()=>dtProg=false,300);},60); // 定位滚动稳定后再放开，之后才认用户拨动
+  }
+  function close(){mask.classList.remove('on');sheet.classList.remove('on');}
+  document.getElementById("dtPill").onclick=open;
+  document.getElementById("dtCancel").onclick=close;
+  mask.onclick=close;
+  document.getElementById("dtOk").onclick=()=>{
+    const p=n=>String(n).padStart(2,'0');
+    document.getElementById("dtVal").textContent=`${dtSel.y}年${p(dtSel.m)}月${p(dtSel.d)}日 ${p(dtSel.h)}:${p(dtSel.mi)}`;
+    document.getElementById("dtVal").classList.remove('ph');
+    dtPicked=true; close();
+  };
 }
 
-// 省市区三级联动
-function initCitySelect(){
+// 出生地·三级联动滚轮（省→市→区，复用 .dt-* 滚轮样式）
+// 通用三级联动滚轮（出生地/现居地共用）
+// cfg: {wheels,mask,sheet,pill,cancel,ok,val, placeholder, ids:[省,市,区], sel(状态对象)}
+function makeCityPicker(cfg){
   const D=window.CITY_DATA||{};
-  const provSel=document.getElementById("bProv"),citySel=document.getElementById("bCity2"),distSel=document.getElementById("bDist");
-  const fill=(sel,arr,ph)=>{sel.innerHTML=`<option value="">${ph}</option>`+arr.map(x=>`<option value="${x}">${x}</option>`).join('');};
-  fill(provSel,Object.keys(D),"省/直辖市");
-  // 默认定位江西九江浔阳(Athena, 也方便测试); 实际给信众时可改默认空
-  provSel.onchange=()=>{
-    const p=provSel.value; citySel.innerHTML='<option value="">市</option>'; distSel.innerHTML='<option value="">区/县</option>';
-    if(p&&D[p]) fill(citySel,Object.keys(D[p]),"市");
+  const wheels=document.getElementById(cfg.wheels); if(!wheels) return;
+  const cols={}; wheels.querySelectorAll(".dt-col").forEach(col=>{cols[col.dataset.k]=col;});
+  const sel=cfg.sel;
+  const provs=Object.keys(D);
+  const citiesOf=p=>p&&D[p]?Object.keys(D[p]):[];
+  const distsOf=(p,c)=>p&&c&&D[p]&&D[p][c]?Object.keys(D[p][c]):[];
+  function mark(col,i){col.querySelectorAll('.it').forEach((el,j)=>el.classList.toggle('sel',j===i));}
+  function buildCol(k,items){
+    const col=cols[k];
+    col.innerHTML='<div class="pad"></div>'+items.map(o=>`<div class="it" data-v="${o}">${o}</div>`).join('')+'<div class="pad"></div>';
+    let idx=items.indexOf(sel[k]); if(idx<0)idx=0;
+    col.scrollTop=idx*DT_H; mark(col,idx);
+    if(items.length) sel[k]=items[idx];
+    let t;
+    col.onscroll=()=>{
+      clearTimeout(t);
+      const i=Math.round(col.scrollTop/DT_H); mark(col,i);
+      t=setTimeout(()=>{
+        col.scrollTo({top:i*DT_H,behavior:'smooth'});
+        const its=col.querySelectorAll('.it'); if(its[i])sel[k]=its[i].dataset.v;
+        document.getElementById(cfg.ok).classList.add("ready"); // 拨动即点亮确定
+        if(k==='prov'){ sel.city="";sel.dist=""; const cs=citiesOf(sel.prov); buildCol('city',cs); buildCol('dist',distsOf(sel.prov,cs[0]||"")); }
+        if(k==='city'){ sel.dist=""; buildCol('dist',distsOf(sel.prov,sel.city)); }
+      },90);
+    };
+  }
+  function rebuildAll(){
+    buildCol('prov',provs);
+    const cs=citiesOf(sel.prov||provs[0]); if(!sel.prov)sel.prov=provs[0]||"";
+    buildCol('city',cs); if(!sel.city)sel.city=cs[0]||"";
+    buildCol('dist',distsOf(sel.prov,sel.city));
+  }
+  const mask=document.getElementById(cfg.mask),sheet=document.getElementById(cfg.sheet);
+  function open(){ mask.classList.add('on');sheet.classList.add('on'); setTimeout(rebuildAll,60); }
+  function close(){ mask.classList.remove('on');sheet.classList.remove('on'); }
+  document.getElementById(cfg.pill).onclick=open;
+  document.getElementById(cfg.cancel).onclick=close;
+  mask.onclick=close;
+  document.getElementById(cfg.ok).onclick=()=>{
+    document.getElementById(cfg.ids[0]).value=sel.prov||"";
+    document.getElementById(cfg.ids[1]).value=sel.city||"";
+    document.getElementById(cfg.ids[2]).value=sel.dist||"";
+    const txt=[sel.prov,sel.city,sel.dist].filter(Boolean).join(" ");
+    const valEl=document.getElementById(cfg.val);
+    valEl.textContent=txt||cfg.placeholder;
+    if(txt)valEl.classList.remove('ph');
+    cfg.onpick&&cfg.onpick(!!txt); close();
   };
-  citySel.onchange=()=>{
-    const p=provSel.value,c=citySel.value; distSel.innerHTML='<option value="">区/县</option>';
-    if(p&&c&&D[p][c]) fill(distSel,Object.keys(D[p][c]),"区/县");
+}
+
+const locSel={prov:"",city:"",dist:""}; let locPicked=false;
+const resSel={prov:"",city:"",dist:""}; let resPicked=false;
+function initCitySelect(){
+  // 出生地
+  makeCityPicker({wheels:"locWheels",mask:"locMask",sheet:"locSheet",pill:"locPill",
+    cancel:"locCancel",ok:"locOk",val:"locVal",placeholder:"请选择出生地",
+    ids:["bProv","bCity2","bDist"],sel:locSel,onpick:v=>locPicked=v});
+  // 现居地（必填，先攒数据，后续参与行运/择城）
+  makeCityPicker({wheels:"resWheels",mask:"resMask",sheet:"resSheet",pill:"resPill",
+    cancel:"resCancel",ok:"resOk",val:"resVal",placeholder:"请选择现居地",
+    ids:["rProv","rCity","rDist"],sel:resSel,onpick:v=>resPicked=v});
+  initTzPicker();
+  initMbtiPicker();
+}
+
+// 时区·单列滚轮
+const TZ_LIST=[["8","[东8] 中国"],["9","[东9] 东京/首尔"],["7","[东7] 曼谷/河内"],["0","[零时区] 伦敦"],["1","[东1] 巴黎/柏林"],["-5","[西5] 美东"],["-8","[西8] 美西"]];
+function initTzPicker(){
+  const col=document.querySelector("#tzWheels .dt-col"); if(!col) return;
+  let cur="8";
+  function mark(i){col.querySelectorAll('.it').forEach((el,j)=>el.classList.toggle('sel',j===i));}
+  function build(){
+    col.innerHTML='<div class="pad"></div>'+TZ_LIST.map(([v,t])=>`<div class="it" data-v="${v}">${t}</div>`).join('')+'<div class="pad"></div>';
+    let idx=TZ_LIST.findIndex(x=>x[0]===cur); if(idx<0)idx=0; col.scrollTop=idx*DT_H; mark(idx);
+    let t; col.onscroll=()=>{clearTimeout(t);const i=Math.round(col.scrollTop/DT_H);mark(i);
+      t=setTimeout(()=>{col.scrollTo({top:i*DT_H,behavior:'smooth'});const its=col.querySelectorAll('.it');if(its[i])cur=its[i].dataset.v;},90);};
+  }
+  const mask=document.getElementById("tzMask"),sheet=document.getElementById("tzSheet");
+  function close(){mask.classList.remove('on');sheet.classList.remove('on');}
+  document.getElementById("tzPill").onclick=()=>{mask.classList.add('on');sheet.classList.add('on');document.getElementById("tzOk").classList.add("ready");setTimeout(build,60);}; // 时区已有默认值，打开即可确定
+  document.getElementById("tzCancel").onclick=close; mask.onclick=close;
+  document.getElementById("tzOk").onclick=()=>{
+    document.getElementById("bTz").value=cur;
+    const lbl=(TZ_LIST.find(x=>x[0]===cur)||["","[东8] 中国"])[1];
+    document.getElementById("tzVal").textContent=lbl; close();
+  };
+}
+
+// 人格类型·4×4 卡片网格（小红书黑话别名；选填，暂不参与排盘）
+// [代码, 官方名, 小红书昵称, 配色组]
+const MBTI_LIST=[
+  ["INTJ","建筑师","紫老头","nt"],["INTP","逻辑学家","药水姐","nt"],["ENTJ","指挥官","人间暴君","nt"],["ENTP","辩论家","骨折眉毛","nt"],
+  ["INFJ","提倡者","抹茶老头","nf"],["INFP","调停者","小蝴蝶","nf"],["ENFJ","教育家","人间导师","nf"],["ENFP","竞选者","快乐小狗","nf"],
+  ["ISTJ","检查员","蓝老头","st"],["ISFJ","守卫者","小护士","st"],["ESTJ","总经理","严厉大家长","st"],["ESFJ","执政官","氛围组","st"],
+  ["ISTP","手艺人","机械孤狼","sp"],["ISFP","艺术家","小画家","sp"],["ESTP","企业家","人间哈士奇","sp"],["ESFP","表演者","舞台显眼包","sp"]
+];
+function initMbtiPicker(){
+  const grid=document.getElementById("mbtiGrid"); if(!grid) return;
+  let cur="";
+  grid.innerHTML=MBTI_LIST.map(([code,official,nick,grp])=>
+    `<div class="mbti-cell ${grp}" data-v="${code}"><div class="code">${code}</div><div class="off">${official}</div><div class="nick">${nick}</div></div>`).join('');
+  grid.querySelectorAll(".mbti-cell").forEach(cell=>cell.onclick=()=>{
+    grid.querySelectorAll(".mbti-cell").forEach(c=>c.classList.remove('sel'));
+    cell.classList.add('sel'); cur=cell.dataset.v;
+    document.getElementById("mbtiOk").classList.add("ready"); // 选了卡片才点亮确定
+  });
+  const mask=document.getElementById("mbtiMask"),sheet=document.getElementById("mbtiSheet");
+  function close(){mask.classList.remove('on');sheet.classList.remove('on');}
+  document.getElementById("mbtiPill").onclick=()=>{mask.classList.add('on');sheet.classList.add('on');};
+  document.getElementById("mbtiCancel").onclick=close; mask.onclick=close;
+  document.getElementById("mbtiOk").onclick=()=>{
+    document.getElementById("bMbti").value=cur;
+    if(cur){ const m=MBTI_LIST.find(x=>x[0]===cur); document.getElementById("mbtiVal").textContent=`${m[0]} · ${m[1]}`; document.getElementById("mbtiVal").classList.remove('ph'); }
+    close();
   };
 }
 
 function doCalcNatal(){
-  const _y=document.getElementById("bY").value,_m=document.getElementById("bM").value,_d=document.getElementById("bD").value;
-  const dateStr=(_y&&_m&&_d)?`${_y}-${String(_m).padStart(2,'0')}-${String(_d).padStart(2,'0')}`:"";
-  const timeStr=document.getElementById("bTime").value||"12:00";
-  if(!dateStr){alert("请先填出生日期");return;}
+  if(!dtPicked){alert("请先选出生日期时间");return;}
+  const p2=n=>String(n).padStart(2,'0');
+  const dateStr=`${dtSel.y}-${p2(dtSel.m)}-${p2(dtSel.d)}`;
+  const timeStr=`${p2(dtSel.h)}:${p2(dtSel.mi)}`;
   const [y,mo,d]=dateStr.split("-").map(Number);
   const [h,mi]=timeStr.split(":").map(Number);
   const tz=parseFloat(document.getElementById("bTz").value);
@@ -701,6 +984,9 @@ function doCalcNatal(){
     cityName=`${lat.toFixed(2)},${lon.toFixed(2)}`;
   }
   if(Math.abs(lat)>66){alert("高纬度地区上升点计算精度会下降，结果仅供参考");}
+  // 现居地、人格类型必填（先攒数据，后续参与行运/解读）
+  if(!resPicked){alert("请选择现居地");return;}
+  // MBTI 选填：没选也照常排盘（选了更好，先攒数据；后续接星座×MBTI解读）
   const sex=document.querySelector("#bSex .opt.on").dataset.v;
   const inp={y,mo,d,h,mi,tz,lat,lon,city:cityName||`${lat},${lon}`,sex};
   natalResult=computeNatal(inp);
@@ -924,11 +1210,47 @@ function panFingerprint(N){
 
 // 只把"星盘数据"格式化成文本(给后端拼神仙虾prompt用; 不含任何角色设定)
 // + 算元素配比和关键身位特征(给后端按身位调语气用)
+// 生命灵数：出生年月日全部数字相加，反复加到一位(11/22/33保留为大师数)。后端算死，绝不让模型算(模型数学不可靠)。
+function lifePathNumber(y,mo,d){
+  let s=String(y)+String(mo)+String(d);
+  let sum=s.split("").reduce((a,c)=>a+(+c),0);
+  while(sum>9 && sum!==11 && sum!==22 && sum!==33){ sum=String(sum).split("").reduce((a,c)=>a+(+c),0); }
+  return sum;
+}
+// ===== 八字+方位(全JS算死,绝不让模型碰生克/计算)。处理晚子时(23点后算次日)。=====
+const _GAN=["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
+const _ZHI=["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+const _GWX={甲:"木",乙:"木",丙:"火",丁:"火",戊:"土",己:"土",庚:"金",辛:"金",壬:"水",癸:"水"};
+const _KE={木:"土",火:"金",土:"水",金:"木",水:"火"}; // 我克者=财
+const _WXFANG={木:"东方",火:"南方",土:"西南方",金:"西方",水:"北方"};
+const _ELFANG={火:"南方",土:"西南方",风:"东方",水:"北方"};
+function _dayIdx(y,mo,d){const base=Date.UTC(1900,0,1);const cur=Date.UTC(y,mo-1,d);const days=Math.round((cur-base)/86400000);return ((10+days)%60+60)%60;}
+function baziCalc(y,mo,d,hour){
+  let dy=y,dmo=mo,dd=d;
+  if(hour>=23){const nx=new Date(Date.UTC(y,mo-1,d+1));dy=nx.getUTCFullYear();dmo=nx.getUTCMonth()+1;dd=nx.getUTCDate();}
+  let yy=y; if(mo<2||(mo===2&&d<4))yy=y-1;
+  const yIdx=((yy-1984)%60+60)%60; const yp=_GAN[yIdx%10]+_ZHI[yIdx%12];
+  const dIdx=_dayIdx(dy,dmo,dd); const dp=_GAN[dIdx%10]+_ZHI[dIdx%12];
+  const jieDay=[0,0,4,6,5,6,6,8,8,8,8,7,7]; let mIdx=mo-2; if(d<jieDay[mo])mIdx-=1; mIdx=(mIdx%12+12)%12;
+  const mZhi=["寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑"][mIdx];
+  const wuhu=[2,4,6,8,0]; const mp=_GAN[(wuhu[_GAN.indexOf(yp[0])%5]+mIdx)%10]+mZhi;
+  const zhiIdx=Math.floor(((hour+1)%24)/2); const wushu=[0,2,4,6,8];
+  const hp=_GAN[(wushu[_GAN.indexOf(dp[0])%5]+zhiIdx)%10]+_ZHI[zhiIdx];
+  return {yp,mp,dp,hp};
+}
+function caiFang(dayGan){return _WXFANG[_KE[_GWX[dayGan]]];}          // 财位=日主克者方位
+function luckyFang(el){const o=Object.entries(el).sort((a,b)=>a[1]-b[1]);return _ELFANG[o[0][0]];} // 幸运方位=星盘最缺元素方位
 function buildNatalData(N){
   const a=N.angles,P=N.planets,m=N.meta;
+  const lifePath=lifePathNumber(m.y,m.mo,m.d);
+  // 八字四柱 + 两个方位(全JS算死)
+  const _bz=baziCalc(m.y,m.mo,m.d,m.h);
+  const _cnt0={火:0,土:0,风:0,水:0}; P.forEach(p=>{const e=ELEMENT[p.sign];if(e)_cnt0[e]++;});
+  const _lucky=luckyFang(_cnt0);     // 幸运方位=星盘最缺元素方位
+  const _cai=caiFang(_bz.dp[0]);     // 财位=八字日主克者方位
   const planetStr=P.map(p=>`  ${p.n} ${p.sign}${p.deg}°${p.rx?'(逆)':''} 第${p.house}宫`).join("\n");
   const houseStr=N.houses.map(h=>`${h.num}宫${h.sign}${h.deg}°`).join(" / ");
-  const data=`出生：${m.y}-${String(m.mo).padStart(2,'0')}-${String(m.d).padStart(2,'0')} ${String(m.h).padStart(2,'0')}:${String(m.mi).padStart(2,'0')}（+${m.tz} ${m.city}）｜性别：${m.sex}\n`
+  const data=`出生：${m.y}-${String(m.mo).padStart(2,'0')}-${String(m.d).padStart(2,'0')} ${String(m.h).padStart(2,'0')}:${String(m.mi).padStart(2,'0')}（+${m.tz} ${m.city}）｜性别：${m.sex}｜【生命灵数=${lifePath}】｜【八字日主=${_bz.dp[0]}】｜【幸运方位=${_lucky}】｜【财位=${_cai}】(以上均已算好，直接用，勿改勿算)\n`
     +`日月升：太阳${P[0].sign}${P[0].deg}° / 月亮${P[1].sign}${P[1].deg}° / 上升${a.asc.sign}${a.asc.deg}°\n`
     +`行星与凯龙（落座·落宫，含凯龙=此生最深的伤口与由伤生出的疗愈天赋）：\n${planetStr}\n`
     +`四轴：上升${a.asc.sign}${a.asc.deg}° / 天顶MC${a.mc.sign}${a.mc.deg}° / 下降${a.dsc.sign}${a.dsc.deg}° / 天底IC${a.ic.sign}${a.ic.deg}°\n`
