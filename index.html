@@ -270,6 +270,7 @@
 <script src="./cities.js"></script>
 <script src="./ephemeris.bundle.js"></script>
 <script src="./chiron-helper.js"></script>
+<script src="./asteroid-ephem.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ===== Supabase 登录（与正式站同一项目，账号打通）===== */
@@ -310,8 +311,15 @@ async function refreshUser(){
       if(at&&rt){
         const {data,error}=await sb.auth.setSession({access_token:at, refresh_token:rt});
         if(!error&&data&&data.user){ _curUser=data.user; updateAcctBadge(); return _curUser; }
-        // token 失效（过期等）→ 清掉备份，避免每次启动白试
-        if(error) localStorage.removeItem("xuanji-auth-bak");
+        // 🔴只在确认 token 真失效时才删备份；网络/服务临时不可达(如部署中)绝不删——
+        //   否则部署那几十秒里误删好token,用户被迫重登且再也回不来(这是"偶发要重登"的真凶)。
+        //   token失效特征:错误信息含 invalid/expired/jwt/refresh 等;网络错(failed to fetch/超时)则保留备份。
+        if(error){
+          const m=((error&&error.message)||"").toLowerCase();
+          const tokenDead=/invalid|expired|jwt|refresh|not\s*found|revoked|bad_jwt/.test(m);
+          if(tokenDead){ localStorage.removeItem("xuanji-auth-bak"); }
+          // 网络类错误:啥都不删,保留备份,本轮就当未登录,下次网络好了还能恢复
+        }
       }
     }
   }catch(_){}
@@ -635,10 +643,33 @@ function computeNatal(inp){
     const L=lon(b,utc); const dm=DEGIN(L);
     return {n,sign:SIGN(L),signIdx:Math.floor(((L%360)+360)%360/30),deg:dm.deg,min:dm.min,house:houseOf(L),rx:isRx(b,utc),L};
   });
-  // 追加凯龙星(Chiron, 来自Moshier库;伤痛与疗愈,本命盘专属,不进三个群运营tab)
-  if(typeof chironLon==="function"){
-    const cL=chironLon(utc), cdm=DEGIN(cL);
-    planets.push({n:"凯龙",sign:SIGN(cL),signIdx:Math.floor(((cL%360)+360)%360/30),deg:cdm.deg,min:cdm.min,house:houseOf(cL),rx:false,L:cL});
+  // 凯龙星(Chiron;伤痛与疗愈)——保留在 planets 里，照旧参与解读/相位/元素。
+  // 🔴取值源优先用 asteroid-ephem.js 的 chiron(对测测仅差~8角分),旧 Moshier 库 chironLon 差~54角分。
+  //    凯龙轨道偏心率高,旧库拟合差;asteroid-ephem 同一套四小行星库顺带算的 chiron 准得多。
+  //    降级:asteroid-ephem 没加载/报错时退回 chironLon,保证不崩。
+  {
+    let cL=null, cRx=false;
+    if(typeof asteroidEphem==="function"){
+      try{ const _c=asteroidEphem(utc).chiron; if(_c&&isFinite(_c.L)){ cL=_c.L; cRx=!!_c.rx; } }catch(_){}
+    }
+    if(cL===null && typeof chironLon==="function"){ try{ cL=chironLon(utc); }catch(_){} }
+    if(cL!==null){
+      const cdm=DEGIN(cL);
+      planets.push({n:"凯龙",sign:SIGN(cL),signIdx:Math.floor(((cL%360)+360)%360/30),deg:cdm.deg,min:cdm.min,house:houseOf(cL),rx:cRx,L:cL});
+    }
+  }
+  // ===== 四小行星(谷神/智神/婚神/灶神)：纯新增，独立成区，只上盘面，不进解读、不进相位、不进三个群运营tab =====
+  // 精度已对测测校验(三盘12体落座100%/度差≤17'/末度临界与逆行全对)。asteroid-ephem.js 提供。
+  const asteroids=[];
+  if(typeof asteroidEphem==="function"){
+    try{
+      const a=asteroidEphem(utc);
+      const _pushAst=(name,L,rx)=>{const dm=DEGIN(L);asteroids.push({n:name,sign:SIGN(L),signIdx:Math.floor(((L%360)+360)%360/30),deg:dm.deg,min:dm.min,house:houseOf(L),rx:!!rx,L:L});};
+      _pushAst("谷神", a.ceres.L,  a.ceres.rx);
+      _pushAst("智神", a.pallas.L, a.pallas.rx);
+      _pushAst("婚神", a.juno.L,   a.juno.rx);
+      _pushAst("灶神", a.vesta.L,  a.vesta.rx);
+    }catch(e){ /* 小行星算失败不影响主盘 */ }
   }
   // 本命相位(复用ASPECTS逻辑)
   const asp=[];
@@ -651,8 +682,8 @@ function computeNatal(inp){
   const angles={
     asc:{sign:SIGN(asc),deg:dm_asc.deg,min:dm_asc.min,L:asc},
     mc:{sign:SIGN(mc),deg:dm_mc.deg,min:dm_mc.min,L:mc},
-    dsc:{sign:SIGN(dsc),deg:dm_dsc.deg,L:dsc},
-    ic:{sign:SIGN(ic),deg:dm_ic.deg,L:ic}
+    dsc:{sign:SIGN(dsc),deg:dm_dsc.deg,min:dm_dsc.min,L:dsc},
+    ic:{sign:SIGN(ic),deg:dm_ic.deg,min:dm_ic.min,L:ic}
   };
   // Placidus 12宫(每宫头带具体度数)
   const houses=[];for(let k=0;k<12;k++){const cdm=DEGIN(cusps[k]);houses.push({num:k+1,sign:SIGN(cusps[k]),deg:cdm.deg,min:cdm.min,L:cusps[k]});}
@@ -669,15 +700,22 @@ function computeNatal(inp){
     let v=Math.atan2(Math.cos(r), -(Math.sin(r)*Math.cos(e)+Math.tan(phi)*Math.sin(e)))*deg;
     return (v%360+360)%360;
   })();
-  // ③ 福点 Part of Fortune: 口径已对齐测测=夜盘式(ASC+太阳-月亮)。
-  //    本盘太阳在地平线下=夜盘, 实测夜盘式=双鱼14°35'(差0.5'), 日盘式则差一大截; 故采用夜盘式。
-  //    注: 测测此盘按夜盘式出值; 若日后发现测测对所有盘统一用日盘式, 改下行为 (asc+moonL-sunL)。
+  // ③ 福点 Part of Fortune: 必须按日/夜盘动态选公式(这是占星标准做法, 测测也如此)。
+  //    日盘(太阳在地平线之上=第7~12宫): ASC + 月亮 - 太阳
+  //    夜盘(太阳在地平线之下=第1~6宫):  ASC + 太阳 - 月亮
+  //    判据用 houseOf(sunL): 7~12 宫=日盘。曾误把一张夜生盘对齐后写死夜公式,
+  //    导致日生盘(如太阳9宫)算错(白羊26° vs 正确双子2°), 现已改回动态。
   const sunL=planets[0].L, moonL=planets[1].L;
-  const fortuneL=((asc+sunL-moonL)%360+360)%360;
-  const mkPt=(n,L)=>{const dm=DEGIN(L);return {n,sign:SIGN(L),deg:dm.deg,min:dm.min,house:houseOf(L),L};};
-  const points=[ mkPt("北交点",nodeL), mkPt("南交点",southL), mkPt("莉莉丝",lilithL),
+  const sunHouse=houseOf(sunL);
+  const isDayChart=(sunHouse>=7&&sunHouse<=12);
+  const fortuneL=isDayChart
+    ? ((asc+moonL-sunL)%360+360)%360   // 日盘
+    : ((asc+sunL-moonL)%360+360)%360;  // 夜盘
+  const mkPt=(n,L,rx)=>{const dm=DEGIN(L);return {n,sign:SIGN(L),deg:dm.deg,min:dm.min,house:houseOf(L),rx:!!rx,L};};
+  // 北交/南交是平均运动逆行点(永远℞,与测测一致)
+  const points=[ mkPt("北交点",nodeL,true), mkPt("南交点",southL,true), mkPt("莉莉丝",lilithL),
                  mkPt("福点",fortuneL), mkPt("宿命点",vertexL), mkPt("东方点",eastL) ];
-  return {meta:inp,utc,planets,asp,angles,houses,points,ascSign,cusps,dstH,eotMin};
+  return {meta:inp,utc,planets,asteroids,asp,angles,houses,points,ascSign,cusps,dstH,eotMin};
 }
 
 /* —— 星座→《商途道业》角色 粗匹配(占位骨架, 后续接魂内核精修) ——
@@ -1013,19 +1051,25 @@ function renderNatalResult(N){
      <span class="sg-arrow"></span>
    </div>
    <!-- 角色卡暂撤(Athena准备世界观中), 以后加回 -->
-   <h2 style="margin-top:14px">✦ 行星落座 · 落宫</h2>
-   ${P.map(p=>`<div class="planet"><span class="pname">${p.n}</span><span class="ppos">${p.sign} ${p.deg}°${String(p.min).padStart(2,'0')}' · 第${p.house}宫</span>${p.rx?'<span class="rx">℞ 逆</span>':''}</div>`).join('')}
-   <h2 style="margin-top:14px">✦ 四轴</h2>
-   <div class="axis">
-     <span class="ax">上升 ${a.asc.sign}${a.asc.deg}° · 第1宫</span>
-     <span class="ax">天顶MC ${a.mc.sign}${a.mc.deg}° · 第10宫</span>
-     <span class="ax">下降 ${a.dsc.sign}${a.dsc.deg}° · 第7宫</span>
-     <span class="ax">天底IC ${a.ic.sign}${a.ic.deg}° · 第4宫</span>
-   </div>
-   <h2 style="margin-top:14px">✦ 进阶点位</h2>
-   <div class="axis">
-     ${N.points.map(pt=>`<span class="ax">${pt.n} ${pt.sign}${pt.deg}° · 第${pt.house}宫</span>`).join('')}
-   </div>
+   <!-- 行间小工具：渲染一行(名/星座度分·宫/逆) -->
+   ${(()=>{
+     const row=(n,sign,deg,min,house,rx)=>`<div class="planet"><span class="pname">${n}</span><span class="ppos">${sign} ${deg}°${String(min).padStart(2,'0')}' · 第${house}宫</span>${rx?'<span class="rx">℞ 逆</span>':''}</div>`;
+     const tenPlanets=P.filter(p=>p.n!=="凯龙");      // 十大行星(凯龙挑去小行星区)
+     const chiron=P.find(p=>p.n==="凯龙");
+     // 区一：行星信息 = 十大行星 + 四轴
+     let h=`<h2 style="margin-top:14px">✦ 行星信息</h2>`;
+     h+=tenPlanets.map(p=>row(p.n,p.sign,p.deg,p.min,p.house,p.rx)).join('');
+     h+=row("上升",a.asc.sign,a.asc.deg,a.asc.min||0,1,false);
+     h+=row("下降",a.dsc.sign,a.dsc.deg,a.dsc.min||0,7,false);
+     h+=row("天底IC",a.ic.sign,a.ic.deg,a.ic.min||0,4,false);
+     h+=row("天顶MC",a.mc.sign,a.mc.deg,a.mc.min||0,10,false);
+     // 区二：小行星信息 = 凯龙 + 四小行星 + 进阶点位
+     h+=`<h2 style="margin-top:14px">✦ 小行星信息</h2>`;
+     if(chiron) h+=row(chiron.n,chiron.sign,chiron.deg,chiron.min,chiron.house,chiron.rx);
+     if(N.asteroids) h+=N.asteroids.map(p=>row(p.n,p.sign,p.deg,p.min,p.house,p.rx)).join('');
+     if(N.points) h+=N.points.map(pt=>row(pt.n,pt.sign,pt.deg,pt.min||0,pt.house,pt.rx)).join('');
+     return h;
+   })()}
    <h2 style="margin-top:14px">✦ 十二宫（Placidus）${stellium.length?`<span style="font-size:12px;color:var(--accent2)">· 星群扎堆：第${stellium.join('、')}宫</span>`:''}</h2>
    <div class="house-grid">
      ${N.houses.map(hh=>{const ps=P.filter(p=>p.house===hh.num).map(p=>p.n).join(' ');return `<div class="hc"><span class="hn">${hh.num}宫</span><span>${hh.sign}${hh.deg}°</span><span class="hp">${ps}</span></div>`;}).join('')}
@@ -1193,9 +1237,8 @@ function buildUserShare(N){
   return `🔮 我的星盘（来自玄玑·Astro）\n`
     +`性别：${m.sex}\n`
     +`☀太阳${P[0].sign}${P[0].deg}°　🌙月亮${P[1].sign}${P[1].deg}°　⬆️上升${a.asc.sign}${a.asc.deg}°\n`
-    +`【行星】${planetStr}\n`
-    +`【四轴】上升${a.asc.sign}${a.asc.deg}°/天顶${a.mc.sign}${a.mc.deg}°/下降${a.dsc.sign}${a.dsc.deg}°/天底${a.ic.sign}${a.ic.deg}°\n`
-    +`【进阶】${N.points.map(pt=>`${pt.n}${pt.sign}${pt.deg}°第${pt.house}宫`).join("、")}\n`
+    +`【行星信息】${P.filter(p=>p.n!=="凯龙").map(p=>`${p.n}${p.sign}${p.deg}°${String(p.min).padStart(2,'0')}'第${p.house}宫${p.rx?'(逆)':''}`).join("、")}、上升${a.asc.sign}${a.asc.deg}°${String(a.asc.min).padStart(2,'0')}'第1宫、下降${a.dsc.sign}${a.dsc.deg}°第7宫、天底IC${a.ic.sign}${a.ic.deg}°第4宫、天顶MC${a.mc.sign}${a.mc.deg}°第10宫\n`
+    +`【小行星信息】${[P.find(p=>p.n==="凯龙")].filter(Boolean).concat(N.asteroids||[],N.points||[]).map(p=>`${p.n}${p.sign}${p.deg}°${String(p.min).padStart(2,'0')}'第${p.house}宫${p.rx?'(逆)':''}`).join("、")}\n`
     +`【相位】${N.asp.map(x=>x.t).join("、")}\n`
     +`——玄玑 · Astro 排盘`;
 }
@@ -1260,11 +1303,15 @@ function buildNatalData(N){
   // 元素配比(给后端判身位调语气): 统计十大行星落座的火土风水
   const cnt={火:0,土:0,风:0,水:0};
   P.forEach(p=>{const e=ELEMENT[p.sign]; if(e)cnt[e]++;});
+  // 金星星座+元素(美睫按金星元素派款,机器算死喂后端,绝不让M3自己判)
+  const venusSign=P[3].sign;          // BODIES顺序:0太阳1月亮2水星3金星
+  const venusElement=ELEMENT[venusSign]||"";
   return {
     data,
     sex:m.sex,
     elements:cnt,
-    sunSign:P[0].sign, moonSign:P[1].sign, ascSign:a.asc.sign
+    sunSign:P[0].sign, moonSign:P[1].sign, ascSign:a.asc.sign,
+    venusSign, venusElement
   };
 }
 
